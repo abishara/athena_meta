@@ -29,9 +29,6 @@ class IPCluster(Cluster):
         cluster_args.update(self.cluster_settings.cluster_options)
         
         print cluster_args
-        #def fn(x):
-        #  return int(x)
-        #args = [1,2,3]
 
         with cluster_view(**cluster_args) as view:
             async_results = view.map(fn, args, block=False)

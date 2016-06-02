@@ -1,0 +1,3 @@
+[submodule "athena/assembler_tools/haplotyper"]
+	path = athena/assembler_tools/haplotyper
+	url = git@bitbucket.org:abishara89/haplotyper.git
