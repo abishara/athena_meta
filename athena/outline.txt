@@ -1,0 +1,15 @@
+mlib/
+  log
+  util
+stages/
+  haplotyper
+  getfq
+  assemble
+  merge
+assembler/
+  haplotyper/
+  scaffolder/
+  bin_assembler/
+
+
+
