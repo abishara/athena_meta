@@ -10,6 +10,7 @@ from athena import pipeline
 from athena.options import Options, ClusterSettings
 
 from athena.stages import haplotype_reads
+from athena.stages import collect_reads
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
@@ -44,6 +45,7 @@ def get_stages():
     stages = collections.OrderedDict()
 
     stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
+    stages["collect_reads"] = collect_reads.CollectReadsStep
 
     return stages
 
@@ -67,7 +69,7 @@ def main(argv):
   assert len(argv) > 1
   scratch_path = argv[1]
   options = Options(scratch_path, None)
-  clean(options)
+  #clean(options)
   run(options)
 
   clean_up()

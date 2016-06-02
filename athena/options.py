@@ -3,12 +3,12 @@ import os
 class ClusterSettings(object):
     def __init__(self):
 
-        self.cluster_type = "local"
+        # ipython cluster
+        self.cluster_type = "IPCluster"
         self.processes = 2
         self.cluster_options = {}
 
-        # ipython cluster
-        self.cluster_type = "IPCluster"
+        self.cluster_type = "local"
         self.processes = 2
         self.cluster_options = {}
 
@@ -34,13 +34,21 @@ class ClusterSettings(object):
 
 
 class Options(object):
+      
+
+
     def __init__(self, scratch_path, options_path, debug=False):
         self.options_path = options_path
         self._output_dir = scratch_path
         #self._output_dir = os.path.dirname(self.options_path)
 
+        # inputs from longranger
+        self.longranger_bam_path = '/srv/gsfs0/projects/batzoglou/abishara/scratch/scratch.longranger.na12878/rfa10x-hg38/PHASER_SVCALLER_CS/PHASER_SVCALLER/_LINKED_READS_ALIGNER/MERGE_BC_BUCKETS/fork0/files/pos_sorted_bam.bam'
+        self.longranger_vcf_path = '/srv/gsfs0/projects/batzoglou/abishara/scratch/scratch.longranger.na12878/rfa10x-hg38/PHASER_SVCALLER_CS/PHASER_SVCALLER/_SNPINDEL_PHASER/_SNPINDEL_CALLER/SORT_SNPINDELS/fork0/files/default.vcf.gz'
+        self.longranger_fqs_path = '/srv/gsfs0/projects/batzoglou/abishara/scratch/scratch.longranger.na12878/rfa10x-loosefreebayes/PHASER_SVCALLER_CS/PHASER_SVCALLER/_LINKED_READS_ALIGNER/_SORT_FASTQ_BY_BARCODE/SORT_FASTQ_BY_BC/fork0'
+
         self.genome_step_size = 50000
-        self.genome_window_size = 10000
+        self.genome_window_size = 100000
         self.samples = {}
         self.ref_fasta = '/srv/gsfs0/projects/batzoglou/abishara/data/reference/hg38/refdata-hg38/fasta/genome.fa'
         self.bwa_index = None
@@ -107,6 +115,11 @@ class Options(object):
         return os.path.join(self.output_dir, "working")
 
     @property
+    def bins_pickle_path(self): 
+        return os.path.join(self.working_dir, 'bins.p')
+
+
+    @property
     def log_dir(self):
         return os.path.join(self.output_dir, "logs")
 
@@ -122,6 +135,19 @@ class Options(object):
             self._constants = constants.get_constants(self)
         return self._constants
     
+    def get_bin_dir(self, binid):
+      ctg, b, e, cidx = binid
+      return os.path.join(
+        self.working_dir,
+        'bins',
+        '{}.{}-{}.c{}'.format(ctg, b, e, cidx),
+      )
+      
+    def get_bin_fq_dir(self, binid):
+      return os.path.join(self.get_bin_dir(binid), 'fqs')
+    def get_bin_asm_dir(self, binid):
+      return os.path.join(self.get_bin_dir(binid), 'asm')
+
     def sample_info(self, sample_name):
         """
         Gets some pre-calculated values for the given sample (eg frag length 

@@ -1,29 +1,34 @@
 import os
 import pysam
+import subprocess
+from ..assembler_tools.haplotyper import haplotyper
 
 #from athena.stages.step import StepChunk
 from .step import StepChunk
 from ..mlib import util
 
+wd = os.path.dirname(os.path.abspath(__file__))
+haplotyperbin_path = os.path.join(
+  wd,
+  '..',
+  'assembler_tools/haplotyper/haplotyper.py',
+)
+assert os.path.isfile(haplotyperbin_path)
+
 class HaplotypeReadsStep(StepChunk):
   @staticmethod
   def get_steps(options):
-    f = pysam.FastaFile(options.ref_fasta)
-    for ctg in f.references:
-      l = f.get_reference_length(ctg)
-      for i, (b, _) in enumerate(
-        util.get_partitions(0, l, options.genome_step_size)
-      ):
-        if i > 5:
-          break
-        e = b + options.genome_window_size
-        yield HaplotypeReadsStep(options, ctg, b, e)
+    for ctg, b, e in util.get_genome_partitions(
+      options.ref_fasta,
+      options.genome_window_size,
+      options.genome_step_size,
+    ):
+      yield HaplotypeReadsStep(options, ctg, b, e)
       break
-    f.close()
 
   def outpaths(self, final=False):
     return {
-      "file" : os.path.join(self.output_dir, 'file'),
+      'stats' : os.path.join(self.output_dir, 'stats.p'),
     }
 
   def __init__(
@@ -53,8 +58,16 @@ class HaplotypeReadsStep(StepChunk):
     )
 
   def run(self):
-    self.logger.log('i am running')
-    file_path = os.path.join(self.output_dir, 'file')
-    util.touch(file_path)
-    self.logger.log('i am done')
+    # FIXME make sure to work out of scratch directory
+    self.logger.log('clustering reads')
+    roi_str = '{}:{}-{}'.format(self.ctg, self.begin, self.end)
+    haplotyper.cluster_reads(
+      self.options.longranger_bam_path,
+      self.options.longranger_vcf_path,
+      roi_str,
+      self.output_dir,
+    )
+    self.logger.log('done')
+    #file_path = os.path.join(self.output_dir, 'file')
+    #util.touch(file_path)
 
