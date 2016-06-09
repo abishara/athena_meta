@@ -3,12 +3,12 @@ import os
 class ClusterSettings(object):
     def __init__(self):
 
-        # ipython cluster
-        self.cluster_type = "IPCluster"
+        self.cluster_type = "local"
         self.processes = 2
         self.cluster_options = {}
 
-        self.cluster_type = "local"
+        # ipython cluster
+        self.cluster_type = "IPCluster"
         self.processes = 2
         self.cluster_options = {}
 
@@ -47,6 +47,8 @@ class Options(object):
         self.longranger_vcf_path = '/srv/gsfs0/projects/batzoglou/abishara/scratch/scratch.longranger.na12878/rfa10x-hg38/PHASER_SVCALLER_CS/PHASER_SVCALLER/_SNPINDEL_PHASER/_SNPINDEL_CALLER/SORT_SNPINDELS/fork0/files/default.vcf.gz'
         self.longranger_fqs_path = '/srv/gsfs0/projects/batzoglou/abishara/scratch/scratch.longranger.na12878/rfa10x-loosefreebayes/PHASER_SVCALLER_CS/PHASER_SVCALLER/_LINKED_READS_ALIGNER/_SORT_FASTQ_BY_BARCODE/SORT_FASTQ_BY_BC/fork0'
 
+        self.regions_bed_path = "/srv/gsfs0/projects/batzoglou/abishara/data/haussler/all-assm-targets.bed"
+
         self.genome_step_size = 50000
         self.genome_window_size = 100000
         self.samples = {}
@@ -60,6 +62,9 @@ class Options(object):
 
         self.debug = debug
 
+        self._regions = None
+        if self.regions_bed_path:
+          self._regions = util.load_bed(self.regions_bed_path)
 
     def serialize(self, ):
         samples = dict((name, self.samples[name].serialize())
@@ -102,6 +107,10 @@ class Options(object):
             for dataset in sample.datasets:
                 if isinstance(dataset, svdatasets.TenXDataset):
                     yield sample, dataset
+    @property
+    def regions(self):
+        return self._regions
+
     @property
     def output_dir(self):
         return self._output_dir

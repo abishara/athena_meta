@@ -4,6 +4,7 @@ import pysam
 from itertools import chain, tee, izip
 import gzip
 import cPickle as pickle
+from bx.intervals.intersection import IntervalTree
 
 #--------------------------------------------------------------------------
 # os
@@ -59,6 +60,22 @@ def load_pickle(path):
   return obj
 
 #--------------------------------------------------------------------------
+# intervals
+#--------------------------------------------------------------------------
+def load_bed(bed_path):
+  intervals_map = defaultdict(lambda: IntervalTree(1,1))
+  with open(bed_path) as f:
+    for i, line in enumerate(f):
+      if line.startswith('#'):
+        continue
+      words = line.split('\t')
+      ctg = words[0]
+      b = int(words[1])
+      e = int(words[2])
+      intervals_map[ctg].insert(b, e, i)
+  return intervals_map
+
+#--------------------------------------------------------------------------
 # partitioning
 #--------------------------------------------------------------------------
 def pairwise(iterable):
@@ -90,33 +107,40 @@ def get_genome_partitions(
 #--------------------------------------------------------------------------
 # fastq
 #--------------------------------------------------------------------------
+def grouped(iterator, lines_per_read):
+  while True:
+    vals = tuple(next(iterator, None) for _ in xrange(lines_per_read))
+    if None not in vals:
+      yield vals
+    else:
+      raise StopIteration
+
+def fa_iter(fa):
+  with open(fa) as f:
+    for fields in grouped(f, 2):
+      qname_ln = fields[0]
+      qname = qname_ln[1:].strip()
+      txt = ''.join(fields)
+      yield (qname, txt)
+  raise StopIteration
+
 def tenx_fastq_iter(fq, fmt='raw'):
   assert fmt in [
     'raw',
     'fa',
   ]
-
-  linesPerRead = 9
-  def grouped(iterator):
-    while True:
-      vals = tuple(next(iterator, None) for _ in xrange(linesPerRead))
-      if None not in vals:
-        yield vals
-      else:
-        raise StopIteration
-
   assert os.path.isfile(fq)
   open_f = open
   if fq.endswith('.gz'):
     open_f = gzip.open
   with open_f(fq) as f:
 
-    for fields in grouped(f):
+    for fields in grouped(f, 9):
       bcode = fields[5].strip()
       if fmt == 'raw':
         rtxt = ''.join(fields)
         yield (bcode, rtxt)
-      elif fmt == 'fa':
+      elif fmt in ['fa', 'fa-bcode']:
         qname_ln = fields[0]
         # strip aux fields
         qname_w = qname_ln.split()[0]
@@ -126,7 +150,10 @@ def tenx_fastq_iter(fq, fmt='raw'):
         assert qname.startswith('@')
         qname = qname[1:]
 
-        header = '>'+qname+'\n'
+        if fmt == 'fa-bcode':
+          header = '>'+bcode+'$'+qname+'\n'
+        else:
+          header = '>'+qname+'\n'
         rtxt = ''.join([
           header,
           fields[1],
@@ -140,5 +167,9 @@ def tenx_fastq_iter(fq, fmt='raw'):
 def convert_tenx_fq2fa(tenxfq_path, fa_path):
   with open(fa_path, 'w') as f:
     for _, txt in tenx_fastq_iter(tenxfq_path, fmt='fa'):
+      f.write(txt)
+def convert_tenx_fq2bcodefa(tenxfq_path, fa_path):
+  with open(fa_path, 'w') as f:
+    for _, txt in tenx_fastq_iter(tenxfq_path, fmt='fa-bcode'):
       f.write(txt)
 

@@ -23,8 +23,9 @@ class HaplotypeReadsStep(StepChunk):
       options.genome_window_size,
       options.genome_step_size,
     ):
-      yield HaplotypeReadsStep(options, ctg, b, e)
-      break
+      if not options.regions or len(options.regions[ctg].find(b,e)) > 0:
+        yield HaplotypeReadsStep(options, ctg, b, e)
+        break
 
   def outpaths(self, final=False):
     return {
