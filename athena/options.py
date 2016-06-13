@@ -1,14 +1,23 @@
 import os
 
+from athena.mlib import util
+
 class ClusterSettings(object):
     def __init__(self):
 
-        self.cluster_type = "local"
+        # mp cluster
+        self.cluster_type = "multiprocessing"
         self.processes = 2
         self.cluster_options = {}
 
         # ipython cluster
         self.cluster_type = "IPCluster"
+        self.processes = 2
+        self.processes = 70
+        self.cluster_options = {}
+
+        # local
+        self.cluster_type = "local"
         self.processes = 2
         self.cluster_options = {}
 
@@ -43,16 +52,16 @@ class Options(object):
         #self._output_dir = os.path.dirname(self.options_path)
 
         # inputs from longranger
-        self.longranger_bam_path = '/srv/gsfs0/projects/batzoglou/abishara/scratch/scratch.longranger.na12878/rfa10x-hg38/PHASER_SVCALLER_CS/PHASER_SVCALLER/_LINKED_READS_ALIGNER/MERGE_BC_BUCKETS/fork0/files/pos_sorted_bam.bam'
-        self.longranger_vcf_path = '/srv/gsfs0/projects/batzoglou/abishara/scratch/scratch.longranger.na12878/rfa10x-hg38/PHASER_SVCALLER_CS/PHASER_SVCALLER/_SNPINDEL_PHASER/_SNPINDEL_CALLER/SORT_SNPINDELS/fork0/files/default.vcf.gz'
-        self.longranger_fqs_path = '/srv/gsfs0/projects/batzoglou/abishara/scratch/scratch.longranger.na12878/rfa10x-loosefreebayes/PHASER_SVCALLER_CS/PHASER_SVCALLER/_LINKED_READS_ALIGNER/_SORT_FASTQ_BY_BARCODE/SORT_FASTQ_BY_BC/fork0'
+        self.longranger_bam_path = '/scratch/users/abishara/data/na12878-longranger-inputs/pos_sorted_bam.bam'
+        self.longranger_vcf_path = '/scratch/users/abishara/data/na12878-longranger-inputs/default.vcf.gz'
+        self.longranger_fqs_path = '/scratch/users/abishara/data/na12878-longranger-inputs/fq-chnks'
 
-        self.regions_bed_path = "/srv/gsfs0/projects/batzoglou/abishara/data/haussler/all-assm-targets.bed"
+        self.regions_bed_path = '/scratch/users/abishara/data/beds/haussler/test.bed'
 
         self.genome_step_size = 50000
         self.genome_window_size = 100000
         self.samples = {}
-        self.ref_fasta = '/srv/gsfs0/projects/batzoglou/abishara/data/reference/hg38/refdata-hg38/fasta/genome.fa'
+        self.ref_fasta = '/scratch/PI/serafim/abishara/reference/refdata-hg38/fasta/genome.fa'
         self.bwa_index = None
         self.binaries = None
         self._reference = None
@@ -63,8 +72,6 @@ class Options(object):
         self.debug = debug
 
         self._regions = None
-        if self.regions_bed_path:
-          self._regions = util.load_bed(self.regions_bed_path)
 
     def serialize(self, ):
         samples = dict((name, self.samples[name].serialize())
@@ -109,6 +116,8 @@ class Options(object):
                     yield sample, dataset
     @property
     def regions(self):
+        if self._regions == None and self.regions_bed_path:
+          self._regions = util.load_bed(self.regions_bed_path)
         return self._regions
 
     @property
@@ -144,10 +153,10 @@ class Options(object):
             self._constants = constants.get_constants(self)
         return self._constants
     
-    def get_bin_dir(self, binid):
+    def get_bin_dir(self, binid, final=False):
       ctg, b, e, cidx = binid
       return os.path.join(
-        self.working_dir,
+        self.working_dir if not final else self.results_dir,
         'bins',
         '{}.{}-{}.c{}'.format(ctg, b, e, cidx),
       )
@@ -201,6 +210,7 @@ class Options(object):
         state = self.__dict__.copy()
         state["_reference"] = None
         state["_constants"] = None
+        state["_regions"] = None
 
         return state
 

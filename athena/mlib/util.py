@@ -5,6 +5,7 @@ from itertools import chain, tee, izip
 import gzip
 import cPickle as pickle
 from bx.intervals.intersection import IntervalTree
+from collections import defaultdict, Counter
 
 #--------------------------------------------------------------------------
 # os
@@ -128,6 +129,7 @@ def tenx_fastq_iter(fq, fmt='raw'):
   assert fmt in [
     'raw',
     'fa',
+    'fa-bcode',
   ]
   assert os.path.isfile(fq)
   open_f = open

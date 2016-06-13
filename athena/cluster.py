@@ -20,8 +20,10 @@ class IPCluster(Cluster):
         from cluster_helper.cluster import cluster_view
 
         cluster_args = {
-            "scheduler": 'sge',
-            "queue": '',
+            "scheduler": 'slurm',
+            "queue": 'owners',
+            #"scheduler": 'sge',
+            #"queue": '',
             "num_jobs": self.processes,
             #"extra_params": {"run_local": True}
         }

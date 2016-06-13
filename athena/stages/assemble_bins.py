@@ -3,13 +3,16 @@ import pysam
 import subprocess
 from collections import defaultdict
 import glob
+import shutil
 
-#from athena.stages.step import StepChunk
+from ..assembler_tools.architect import architect
+from ..assembler_tools.architect import local_assembly
+
 from .step import StepChunk
 from ..mlib import util
 
 # FIXME remove harcoded path
-idbabin_path = '/home/abishara/projs/idba-rc/bin/idba_ud'
+idbabin_path = '/home/abishara/sources/idba/bin/idba_ud'
 
 wd = os.path.dirname(os.path.abspath(__file__))
 architect_scripts_path = os.path.join(
@@ -24,14 +27,36 @@ class AssembleBinsStep(StepChunk):
 
   @staticmethod
   def get_steps(options):
-    bins = util.load_pickle(self.options.bins_pickle_path)
+    bins = util.load_pickle(options.bins_pickle_path)
 
     for i, (binid, bcode_set) in enumerate(bins):
       yield AssembleBinsStep(options, binid)
 
   def outpaths(self, final=False):
-    return {
-    }
+    paths = {}
+    paths['contig.fa'] = os.path.join(
+      self.options.get_bin_dir(self.binid, final=True),
+      'contig.fa',
+    )
+    paths['local-asm-merged.fa'] = os.path.join(
+      self.options.get_bin_dir(self.binid, final=True),
+      'local-asm-merged.fa',
+    )
+    paths['architect-scaff.fasta'] = os.path.join(
+      self.options.get_bin_dir(self.binid, final=True),
+      'scaff.fasta',
+    )
+    return paths
+
+  @property
+  def outdir(self):
+    return self.options.get_bin_dir(self.binid, final=True)
+
+  def clean_working(self):
+    bin_path = self.options.get_bin_dir(self.binid)
+    self.logger.log('removing bin directory {}'.format(bin_path))
+    shutil.rmtree(bin_path)
+    return 
 
   def __init__(
     self,
@@ -40,9 +65,10 @@ class AssembleBinsStep(StepChunk):
   ):
     self.options = options
     self.binid = binid
+    util.mkdir_p(self.outdir)
 
   def __str__(self):
-    ctg, b, e, cidx = binid
+    ctg, b, e, cidx = self.binid
     return '{}_{}.{}-{}.c{}'.format(
       self.__class__.__name__,
       ctg, b, e, cidx,
@@ -51,9 +77,9 @@ class AssembleBinsStep(StepChunk):
   def run(self):
     self.logger.log('assembling barcoded reads for this bin')
 
-    fqdir_path = self.options.get_bin_fq_dir(binid)
+    fqdir_path = self.options.get_bin_fq_dir(self.binid)
     allfa_path = os.path.join(fqdir_path, 'tenxreads.fa')
-    asmdir_path = self.options.get_bin_asm_dir(binid)
+    asmdir_path = self.options.get_bin_asm_dir(self.binid)
     # merge fq fragments to create input reads, create idba *fa reads
     with util.cd(fqdir_path):
       cmd = 'cat *frag.fq > tenxreads.fq'
@@ -69,13 +95,14 @@ class AssembleBinsStep(StepChunk):
     subprocess.check_call(cmd, shell=True)
     
     with util.cd(asmdir_path):
-      assert os.path.isfile(contig.fa), 'idba failed to generate contig.fa'
+      assert os.path.isfile('contig.fa'), 'idba failed to generate contig.fa'
 
       # index initial contigs
       cmd = 'bwa index contig.fa'
       subprocess.check_call(cmd, shell=True)
 
       # align reads to contigs
+      self.logger.log('aligning reads to contigs')
       cmd = 'bwa mem -p contig.fa {} > align.on-contig.sam'.format(
         '../fqs/tenxreads-bcoded.fa'
       )
@@ -90,16 +117,19 @@ class AssembleBinsStep(StepChunk):
         allbam_path,
         filtbam_path,
       )
+      cmd = 'samtools index {}'.format(filtbam_path)
+      subprocess.check_call(cmd, shell=True)
 
       # create edges.tsv and containment files from architect
-      cmd = '{} -b {} -f {} -e {}'.format(
+      self.logger.log('generating local reassembly inputs')
+      cmd = 'python {} -b {} -f {} -e {}'.format(
         edgesbin_path,
         filtbam_path,
         'contig.fa',
         'edges.tsv',
       )
       subprocess.check_call(cmd, shell=True)
-      cmd = '{} -b {} -c {}'.format(
+      cmd = 'python {} -b {} -c {}'.format(
         containmentbin_path,
         filtbam_path,
         'containment',
@@ -115,6 +145,8 @@ class AssembleBinsStep(StepChunk):
       )
 
       # run architect for local assemblies
+      local_assembly.setup_cwd()
+      self.logger.log('performing local reassembly')
       architect.do_local_reassembly(
         'contig.fa',
         'edges.tsv',
@@ -122,12 +154,32 @@ class AssembleBinsStep(StepChunk):
         filtfa_path,
       )
 
+      # FIXME for now just run scaffolding in each bucket separately
+      architect.do_scaffolding(
+        'contig.fa',
+        'edges.tsv',
+        'containment',
+        0,
+        'scaff',
+      )
+
+    def copyfinal(src, dest):
+      shutil.copyfile(
+        os.path.join(self.options.get_bin_asm_dir(self.binid), src),
+        os.path.join(self.options.get_bin_dir(self.binid, final=True), dest),
+      )
+
+    self.logger.log('copying deliverables to final')
+    copyfinal('contig.fa', 'contig.fa')
+    copyfinal('local-assemblies/local-asm-merged.fa', 'local-asm-merged.fa')
+    copyfinal('scaff.fasta', 'scaff.fasta')
+
     self.logger.log('done')
 
 #--------------------------------------------------------------------------
 # helpers
 #--------------------------------------------------------------------------
-def filter_alignments(inbam_path, outbam_path):
+def filter_alignments(in_path, out_path):
   def get_clip_info(read):
     (c, l) = read.cigar[0]
     lclip = (c in [4,5])

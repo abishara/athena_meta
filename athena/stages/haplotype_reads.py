@@ -3,7 +3,6 @@ import pysam
 import subprocess
 from ..assembler_tools.haplotyper import haplotyper
 
-#from athena.stages.step import StepChunk
 from .step import StepChunk
 from ..mlib import util
 
@@ -16,6 +15,7 @@ haplotyperbin_path = os.path.join(
 assert os.path.isfile(haplotyperbin_path)
 
 class HaplotypeReadsStep(StepChunk):
+
   @staticmethod
   def get_steps(options):
     for ctg, b, e in util.get_genome_partitions(
@@ -28,9 +28,17 @@ class HaplotypeReadsStep(StepChunk):
         break
 
   def outpaths(self, final=False):
-    return {
-      'stats' : os.path.join(self.output_dir, 'stats.p'),
-    }
+    paths = {}
+    paths['stats'] = os.path.join(self.outdir, 'stats.p')
+    return paths
+ 
+  @property
+  def outdir(self):
+    return os.path.join(
+      self.options.results_dir,
+      self.__class__.__name__,
+      str(self),
+    )
 
   def __init__(
     self,
@@ -43,12 +51,7 @@ class HaplotypeReadsStep(StepChunk):
     self.ctg = ctg
     self.begin = begin
     self.end = end
-    self.output_dir = os.path.join(
-      self.options.working_dir,
-      self.__class__.__name__,
-      str(self),
-    )
-    util.mkdir_p(self.output_dir)
+    util.mkdir_p(self.outdir)
 
   def __str__(self):
     return '{}_{}.{}-{}'.format(
@@ -59,16 +62,13 @@ class HaplotypeReadsStep(StepChunk):
     )
 
   def run(self):
-    # FIXME make sure to work out of scratch directory
     self.logger.log('clustering reads')
     roi_str = '{}:{}-{}'.format(self.ctg, self.begin, self.end)
     haplotyper.cluster_reads(
       self.options.longranger_bam_path,
       self.options.longranger_vcf_path,
       roi_str,
-      self.output_dir,
+      self.outdir,
     )
     self.logger.log('done')
-    #file_path = os.path.join(self.output_dir, 'file')
-    #util.touch(file_path)
 

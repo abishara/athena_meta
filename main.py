@@ -11,6 +11,7 @@ from athena.options import Options, ClusterSettings
 
 from athena.stages import haplotype_reads
 from athena.stages import collect_reads
+from athena.stages import assemble_bins
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
@@ -46,16 +47,18 @@ def get_stages():
 
     stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
     stages["collect_reads"] = collect_reads.CollectReadsStep
+    stages["assemble_bins"] = assemble_bins.AssembleBinsStep
 
     return stages
 
 def clean_up():
   junk = filter(
     lambda(f): (
+      f.startswith('SLURM_controller') or 
+      f.startswith('SLURM_engine') or 
       f.startswith('sge_controller') or 
       f.startswith('sge_engine') or 
-      f.startswith('bcbio-e') or
-      f.startswith('bcbio-c')
+      f.startswith('bcbio-')
     ),
     os.listdir('.'),
   )

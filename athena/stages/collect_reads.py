@@ -6,7 +6,6 @@ import glob
 
 from ..assembler_tools.haplotyper import haplotyper
 
-#from athena.stages.step import StepChunk
 from .step import StepChunk
 from ..mlib import util
 import haplotype_reads
@@ -24,6 +23,7 @@ class CollectReadsStep(StepChunk):
         (cluster_info_map, _) = util.load_pickle(hapout_path)
         for cidx, info in cluster_info_map.items():
           numreads, bcode_set, _, assm = info
+          ctg, b, e = hap_step.ctg, hap_step.begin, hap_step.end
           binid = (ctg, b, e, cidx)
           if assm and cidx != None:
             bins.append((binid, bcode_set))
@@ -37,17 +37,17 @@ class CollectReadsStep(StepChunk):
       yield CollectReadsStep(options, fq_path)
 
   def outpaths(self, final=False):
-    bins = util.load_pickle(self.options.bins_pickle_path)
-
     paths = {}
-    # open a file handle for each bin
-    for i, (binid, bcode_set) in enumerate(bins):
-      fqfrag_path = os.path.join(
-        self.options.get_bin_fq_dir(binid),
-        '{}.frag.fq'.format(self.__fqid()),
-      )
-      paths[str(i)] = fqfrag_path
+    paths['pass.file'] = os.path.join(self.outdir, 'pass')
     return paths
+ 
+  @property
+  def outdir(self):
+    return os.path.join(
+      self.options.results_dir,
+      self.__class__.__name__,
+      str(self),
+    )
 
   def __init__(
     self,
@@ -56,6 +56,7 @@ class CollectReadsStep(StepChunk):
   ):
     self.options = options
     self.fq_path = fq_path
+    util.mkdir_p(self.outdir)
 
   def __fqid(self):
     return os.path.basename(os.path.dirname(os.path.dirname(self.fq_path)))
@@ -94,5 +95,7 @@ class CollectReadsStep(StepChunk):
     for f in groupf_map.values():
       f.close()
 
+    passfile_path = os.path.join(self.outdir, 'pass')
+    util.touch(passfile_path)
     self.logger.log('done')
 

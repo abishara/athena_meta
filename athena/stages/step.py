@@ -33,6 +33,11 @@ class StepChunk(object):
         defined in __init__ """
         pass
 
+    @abc.abstractproperty
+    def outdir(self):
+        """ final directory to pass deliverables """
+        return
+
     def __str__(self):
         raise Exception("not implemented")
 
@@ -55,7 +60,7 @@ class StepChunk(object):
     def clean_all_steps(cls, options):
         for chunk in cls.get_steps(options):
             chunk.clean()
-            
+
     def clean(self):
         import logging
         for path_name, path in self.outpaths(final=True).items():
@@ -69,6 +74,14 @@ class StepChunk(object):
         if os.path.exists(self.log_path):
             os.remove(self.log_path)
 
+    @classmethod
+    def clean_all_steps_working(cls, options):
+        for chunk in cls.get_steps(options):
+            chunk.clean_working()
+
+    def clean_working(self):
+      return
+            
     def needs_to_run(self):
         """ checks if any of the output files are missing """
         paths = self.outpaths(final=True)
