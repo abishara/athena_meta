@@ -1,4 +1,5 @@
 import os
+import json
 
 from athena.mlib import util
 
@@ -44,25 +45,20 @@ class ClusterSettings(object):
 
 class Options(object):
       
-
-
-    def __init__(self, scratch_path, options_path, debug=False):
+    def __init__(self, options_path, debug=False):
         self.options_path = options_path
-        self._output_dir = scratch_path
-        #self._output_dir = os.path.dirname(self.options_path)
+        self._output_dir = os.path.dirname(self.options_path)
 
         # inputs from longranger
-        self.longranger_bam_path = '/scratch/users/abishara/data/na12878-longranger-inputs/pos_sorted_bam.bam'
-        self.longranger_vcf_path = '/scratch/users/abishara/data/na12878-longranger-inputs/default.vcf.gz'
-        self.longranger_fqs_path = '/scratch/users/abishara/data/na12878-longranger-inputs/fq-chnks'
+        self.longranger_bam_path = None
+        self.longranger_vcf_path = None
+        self.longranger_fqs_path = None
 
-        self.regions_bed_path = '/scratch/users/abishara/data/beds/haussler/test.bed'
+        self.regions_bed_path = None
 
         self.genome_step_size = 50000
         self.genome_window_size = 100000
-        self.samples = {}
-        self.ref_fasta = '/scratch/PI/serafim/abishara/reference/refdata-hg38/fasta/genome.fa'
-        self.bwa_index = None
+        self.ref_fasta = None
         self.binaries = None
         self._reference = None
         self._constants = None
@@ -74,46 +70,36 @@ class Options(object):
         self._regions = None
 
     def serialize(self, ):
-        samples = dict((name, self.samples[name].serialize())
-                       for name in self.samples)
-
-        d = {"samples": samples,
-             "ref_fasta": self.ref_fasta,
-             "cluster_settings": self.cluster_settings.serialize(),
-             "bwa_index": self.bwa_index,
-             "binaries": self.binaries
+        d = {
+          "ref_fasta": self.ref_fasta,
+          "cluster_settings": self.cluster_settings.serialize(),
+          "binaries": self.binaries
         }
 
         return d
 
     @staticmethod
-    def deserialize(options_dict, options_path):
-        samples = {}
-        for sample_name in options_dict["samples"]:
-            sample_info = options_dict["samples"][sample_name]
-            cursample = Sample(sample_name)
-            for dataset in sample_info:
-                cursample.datasets.append(
-                    svdatasets.Dataset.deserialize(cursample, dataset))
-
-            samples[sample_name] = cursample
+    def deserialize(options_path):
+        # load json config
+        with open(options_path) as f:
+          options_dict = json.load(f)
 
         options = Options(options_path)
-        options.samples = samples
+        # required
         options.ref_fasta = options_dict["ref_fasta"]
+        options.longranger_bam_path = options_dict["longranger_bam_path"]
+        options.longranger_vcf_path = options_dict["longranger_vcf_path"]
+        options.longranger_fqs_path = options_dict["longranger_fqs_path"]
+        # optional
+        options.regions_bed_path = options_dict.get("regions_bed_path", None)
+        options.binaries = options_dict.get("binaries", None)
+
         options.cluster_settings = ClusterSettings.deserialize(
             options_dict.get("cluster_settings", {}))
 
-        options.bwa_index = options_dict.get("bwa_index", None)
-        options.binaries = options_dict.get("binaries", None)
 
         return options
 
-    def iter_10xdatasets(self):
-        for sample_name, sample in self.samples.items():
-            for dataset in sample.datasets:
-                if isinstance(dataset, svdatasets.TenXDataset):
-                    yield sample, dataset
     @property
     def regions(self):
         if self._regions == None and self.regions_bed_path:
@@ -165,19 +151,6 @@ class Options(object):
       return os.path.join(self.get_bin_dir(binid), 'fqs')
     def get_bin_asm_dir(self, binid):
       return os.path.join(self.get_bin_dir(binid), 'asm')
-
-    def sample_info(self, sample_name):
-        """
-        Gets some pre-calculated values for the given sample (eg frag length 
-        distributions)
-        """
-        info_path = os.path.join(
-            self.results_dir, "sample_info.{}.pickle".format(sample_name))
-
-        if not os.path.exists(info_path):
-            raise Exception("SampleInfoStep needs to be run first!")
-
-        return utilities.pickle.load(open(info_path))
 
     def binary(self, name):
         """

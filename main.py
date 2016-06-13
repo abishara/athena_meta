@@ -1,5 +1,4 @@
 import os
-import json
 import sys
 import collections
 import logging
@@ -69,9 +68,21 @@ def main(argv):
   1. process command-line arguments
   3. run
   """
-  assert len(argv) > 1
-  scratch_path = argv[1]
-  options = Options(scratch_path, None)
+
+  help_str = '''
+  usage: athena.py <path/to/config.json>
+
+  NOTE: dirname(config.json) specifies root output directory
+  '''
+  if len(argv) != 2:
+    print help_str
+    sys.exit(1)
+
+  config_path = argv[1]
+
+  # load config json
+  options = Options.deserialize(config_path)
+
   #clean(options)
   run(options)
 
