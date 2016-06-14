@@ -6,7 +6,7 @@ import logging
 from athena.mlib import util
 
 from athena import pipeline
-from athena.options import Options, ClusterSettings
+from athena.options import RefAsmOptions, ReadsOptions, MetaAsmOptions
 
 from athena.stages import haplotype_reads
 from athena.stages import collect_reads
@@ -28,25 +28,29 @@ def run(options):
     util.mkdir_p(options.working_dir)
     util.mkdir_p(options.log_dir)
 
-    stages = get_stages()
+    stages = get_stages(options)
     runner = pipeline.Runner(options)
 
     for stage_name, stage in stages.items():
         runner.run_stage(stage, stage_name)
 
 def clean(options):
-  stages = get_stages()
+  stages = get_stages(options)
 
   for stage_name, stage in stages.items():
     stage.clean_all_steps(options)
 
-
-def get_stages():
+def get_stages(options):
     stages = collections.OrderedDict()
 
-    stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
-    stages["collect_reads"] = collect_reads.CollectReadsStep
-    stages["assemble_bins"] = assemble_bins.AssembleBinsStep
+    if options.pipe_type == 'ref-asm':
+      stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
+      stages["collect_reads"] = collect_reads.CollectReadsStep
+      stages["assemble_bins"] = assemble_bins.AssembleBinnedStep
+    elif options.pipe_type == 'reads':
+      stages["assemble_reads"] = assemble_bins.AssembleSpecReadsStep
+    else:
+      raise Exception("Pipeline not implemented yet")
 
     return stages
 
@@ -70,18 +74,35 @@ def main(argv):
   """
 
   help_str = '''
-  usage: athena.py <path/to/config.json>
+  usage: athena.py <path/to/config.json> [pipeline]
+
+  pipeline: {ref-asm, reads, meta-asm}, default: ref-asm
 
   NOTE: dirname(config.json) specifies root output directory
   '''
-  if len(argv) != 2:
+  if len(argv) != 2 and len(argv) != 3:
     print help_str
     sys.exit(1)
 
   config_path = argv[1]
+  pipe_type = 'ref-asm'
+  if len(argv) == 3:
+    pipe_type = argv[2]
+    if pipe_type not in [
+      'ref-asm',
+      'reads',
+      'meta-asm',
+    ]:
+      print >> sys.stderr, 'error: incorrect pipeline specified'
+      sys.exit(2)
 
   # load config json
-  options = Options.deserialize(config_path)
+  options_cls = {
+    'ref-asm' : RefAsmOptions,
+    'reads'   : ReadsOptions,
+    'meta-asm': MetaAsmOptions,
+  }[pipe_type]
+  options = options_cls.deserialize(config_path)
 
   #clean(options)
   run(options)

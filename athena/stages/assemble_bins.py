@@ -23,34 +23,28 @@ architect_scripts_path = os.path.join(
 edgesbin_path = os.path.join(architect_scripts_path, 'pe-connections.py')
 containmentbin_path = os.path.join(architect_scripts_path, 'bam_to_containment.py')
 
-class AssembleBinsStep(StepChunk):
+#--------------------------------------------------------------------------
+# base class
+#--------------------------------------------------------------------------
+class AssembleBaseStep(StepChunk):
 
-  @staticmethod
-  def get_steps(options):
-    bins = util.load_pickle(options.bins_pickle_path)
-
-    for i, (binid, bcode_set) in enumerate(bins):
-      yield AssembleBinsStep(options, binid)
-
-  def outpaths(self, final=False):
-    paths = {}
-    paths['contig.fa'] = os.path.join(
-      self.options.get_bin_dir(self.binid, final=True),
-      'contig.fa',
-    )
-    paths['local-asm-merged.fa'] = os.path.join(
-      self.options.get_bin_dir(self.binid, final=True),
-      'local-asm-merged.fa',
-    )
-    paths['architect-scaff.fasta'] = os.path.join(
-      self.options.get_bin_dir(self.binid, final=True),
-      'scaff.fasta',
-    )
-    return paths
+  # NOTE to be defined in subclass
+  #@staticmethod
+  #def get_steps(options):
+  #  pass
+  #def run(self):
+  #def __init__(self):
 
   @property
   def outdir(self):
     return self.options.get_bin_dir(self.binid, final=True)
+
+  def outpaths(self, final=False):
+    paths = {}
+    paths['contig.fa'] = os.path.join(self.outdir, 'contig.fa')
+    paths['local-asm-merged.fa'] = os.path.join(self.outdir, 'local-asm-merged.fa')
+    paths['architect-scaff.fasta'] = os.path.join(self.outdir, 'scaff.fasta')
+    return paths
 
   def clean_working(self):
     bin_path = self.options.get_bin_dir(self.binid)
@@ -58,33 +52,15 @@ class AssembleBinsStep(StepChunk):
     shutil.rmtree(bin_path)
     return 
 
-  def __init__(
-    self,
-    options,
-    binid,
-  ):
-    self.options = options
-    self.binid = binid
-    util.mkdir_p(self.outdir)
-
-  def __str__(self):
-    ctg, b, e, cidx = self.binid
-    return '{}_{}.{}-{}.c{}'.format(
-      self.__class__.__name__,
-      ctg, b, e, cidx,
-    )
-
-  def run(self):
+  def assemble(self):
     self.logger.log('assembling barcoded reads for this bin')
 
     fqdir_path = self.options.get_bin_fq_dir(self.binid)
-    allfa_path = os.path.join(fqdir_path, 'tenxreads.fa')
+    allfa_path = os.path.join(fqdir_path, 'tenxreads-bcoded.fa')
     asmdir_path = self.options.get_bin_asm_dir(self.binid)
-    # merge fq fragments to create input reads, create idba *fa reads
+    # create barcoded idba *fa reads
     with util.cd(fqdir_path):
-      cmd = 'cat *frag.fq > tenxreads.fq'
-      subprocess.check_call(cmd, shell=True)
-      util.convert_tenx_fq2fa('tenxreads.fq', 'tenxreads.fa')
+      #util.convert_tenx_fq2fa('tenxreads.fq', 'tenxreads.fa')
       util.convert_tenx_fq2bcodefa('tenxreads.fq', 'tenxreads-bcoded.fa')
     # initial idba assembly
     cmd = '{} -r {} -o {}'.format(
@@ -175,6 +151,72 @@ class AssembleBinsStep(StepChunk):
     copyfinal('scaff.fasta', 'scaff.fasta')
 
     self.logger.log('done')
+
+#--------------------------------------------------------------------------
+# assemble specified barcoded reads step
+#--------------------------------------------------------------------------
+class AssembleSpecReadsStep(AssembleBaseStep):
+
+  @staticmethod
+  def get_steps(options):
+    yield AssembleSpecReadsStep(options)
+
+  def __init__(
+    self,
+    options,
+  ):
+    self.binid = None
+    self.options = options
+    fqdir_path = self.options.get_bin_fq_dir(self.binid)
+    util.mkdir_p(self.outdir)
+    util.mkdir_p(fqdir_path)
+
+  def __str__(self):
+    return self.__class__.__name__
+
+  def run(self):
+    self.logger.log('copy input fq to scratch directory')
+    fqdir_path = self.options.get_bin_fq_dir(self.binid)
+    shutil.copy(self.options.tenxfq_path, fqdir_path)
+
+    self.assemble()
+
+#--------------------------------------------------------------------------
+# assemble barcoded reads binned by buckets and haplotyping of all reads
+#--------------------------------------------------------------------------
+class AssembleBinnedStep(AssembleBaseStep):
+
+  @staticmethod
+  def get_steps(options):
+    bins = util.load_pickle(options.bins_pickle_path)
+
+    for i, (binid, bcode_set) in enumerate(bins):
+      yield AssembleBinnedStep(options, binid)
+
+  def __init__(
+    self,
+    options,
+    binid,
+  ):
+    self.options = options
+    self.binid = binid
+    util.mkdir_p(self.outdir)
+
+  def __str__(self):
+    ctg, b, e, cidx = self.binid
+    return '{}_{}.{}-{}.c{}'.format(
+      self.__class__.__name__,
+      ctg, b, e, cidx,
+    )
+
+  def run(self):
+    self.logger.log('merging fastq fragments for this bin')
+    fqdir_path = self.options.get_bin_fq_dir(self.binid)
+    with util.cd(fqdir_path):
+      cmd = 'cat *frag.fq > tenxreads.fq'
+      subprocess.check_call(cmd, shell=True)
+
+    self.assemble()
 
 #--------------------------------------------------------------------------
 # helpers
