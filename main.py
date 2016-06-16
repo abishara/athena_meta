@@ -11,6 +11,8 @@ from athena.options import RefAsmOptions, ReadsOptions, MetaAsmOptions
 from athena.stages import haplotype_reads
 from athena.stages import collect_reads
 from athena.stages import assemble_bins
+from athena.stages import group_bins
+from athena.stages import assemble_groups
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
@@ -45,8 +47,11 @@ def get_stages(options):
 
     if options.pipe_type == 'ref-asm':
       stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
-      stages["collect_reads"] = collect_reads.CollectReadsStep
+      stages["collect_bin_reads"] = collect_reads.CollectBinReadsStep
       stages["assemble_bins"] = assemble_bins.AssembleBinnedStep
+      stages["group_bins"] = group_bins.GroupBinsStep
+      stages["collect_group_reads"] = collect_reads.CollectGroupReadsStep
+      stages["assemble_groups"] = assemble_groups.AssembleGroupsStep
     elif options.pipe_type == 'reads':
       stages["assemble_reads"] = assemble_bins.AssembleSpecReadsStep
     else:

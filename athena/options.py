@@ -138,9 +138,8 @@ class RefAsmOptions(Options):
 
     def __init__(self, options_path, debug=False):
 
-        super(RefAsmOptions, self).__init__(options_path, debug)
+        super(RefAsmOptions, self).__init__(options_path)
 
-        self.debug = debug
         self.binaries = None
         self._regions = None
 
@@ -153,7 +152,24 @@ class RefAsmOptions(Options):
     @property
     def bins_pickle_path(self): 
         return os.path.join(self.working_dir, 'bins.p')
+
+    @property
+    def groups_pickle_path(self): 
+        return os.path.join(self.working_dir, 'groups.p')
+    @property
+    def groups2_pickle_path(self): 
+        return os.path.join(self.working_dir, 'groups2.p')
     
+    def get_group_dir(self, gid, final=False):
+      return os.path.join(
+        self.working_dir if not final else self.results_dir,
+        'groups',
+        'group.{}'.format(gid),
+      )
+
+    def get_group_fq_dir(self, gid):
+      return os.path.join(self.get_group_dir(gid), 'fqs')
+
     def get_bin_dir(self, binid, final=False):
       ctg, b, e, cidx = binid
       return os.path.join(
