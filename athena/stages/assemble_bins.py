@@ -11,8 +11,8 @@ from ..assembler_tools.architect import local_assembly
 from .step import StepChunk
 from ..mlib import util
 
-# FIXME remove harcoded path
-idbabin_path = '/home/abishara/sources/idba/bin/idba_ud'
+# NOTE must be in path
+idbabin_path = 'idba_ud'
 
 wd = os.path.dirname(os.path.abspath(__file__))
 architect_scripts_path = os.path.join(
