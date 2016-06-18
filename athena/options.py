@@ -169,6 +169,8 @@ class RefAsmOptions(Options):
 
     def get_group_fq_dir(self, gid):
       return os.path.join(self.get_group_dir(gid), 'fqs')
+    def get_group_asm_dir(self, gid):
+      return os.path.join(self.get_group_dir(gid), 'asm')
 
     def get_bin_dir(self, binid, final=False):
       ctg, b, e, cidx = binid

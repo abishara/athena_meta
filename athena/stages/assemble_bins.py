@@ -177,8 +177,10 @@ class AssembleSpecReadsStep(AssembleBaseStep):
   def run(self):
     self.logger.log('copy input fq to scratch directory')
     fqdir_path = self.options.get_bin_fq_dir(self.binid)
-    shutil.copy(self.options.tenxfq_path, fqdir_path)
-
+    shutil.copy(
+      self.options.tenxfq_path, 
+      os.path.join(fqdir_path, 'tenxreads.fq'),
+    )
     self.assemble()
 
 #--------------------------------------------------------------------------
@@ -267,7 +269,7 @@ def get_filtered_fa(
   fin.close()
 
   with open(outfa_path, 'w') as fout:
-    for qname, txt in util.fa_iter(infa_path):
-      if qname in qname_set:
-        fout.write(txt)
+    for e in util.fa_iter(infa_path):
+      if e.qname_full in qname_set:
+        fout.write(e.txt)
 

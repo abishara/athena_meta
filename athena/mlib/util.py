@@ -5,7 +5,7 @@ from itertools import chain, tee, izip
 import gzip
 import cPickle as pickle
 from bx.intervals.intersection import IntervalTree
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, namedtuple
 
 #--------------------------------------------------------------------------
 # os
@@ -29,13 +29,12 @@ class cd:
   def __exit__(self, etype, value, traceback):
     os.chdir(self.savedPath)
 
-def concatFiles(input_list, output_path):
+def concat_files(input_list, output_path):
   with open(output_path, 'w') as outf:
     for path in input_list:
       with open(path) as inf:
         for line in inf:
           outf.write(line)
-
   return
 
 def touch(path, times=None):
@@ -116,13 +115,31 @@ def grouped(iterator, lines_per_read):
     else:
       raise StopIteration
 
+
+FastaEntry_t = namedtuple(
+  'FastaEntry_t',
+  [
+    'qname',
+    'qname_full',
+    'header',
+    'seq',
+    'txt',
+  ]
+)
 def fa_iter(fa):
   with open(fa) as f:
     for fields in grouped(f, 2):
       qname_ln = fields[0]
       qname = qname_ln[1:].strip()
       txt = ''.join(fields)
-      yield (qname, txt)
+      yield FastaEntry_t(
+        qname=qname.split()[0],
+        qname_full=qname,
+        header=fields[0].strip(),
+        seq=fields[1].strip(),
+        txt=txt,
+      )
+      #yield (qname, txt)
   raise StopIteration
 
 def tenx_fastq_iter(fq, fmt='raw'):
