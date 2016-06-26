@@ -25,7 +25,7 @@ class HaplotypeReadsStep(StepChunk):
     ):
       if not options.regions or len(options.regions[ctg].find(b,e)) > 0:
         yield HaplotypeReadsStep(options, ctg, b, e)
-        break
+        #break
 
   def outpaths(self, final=False):
     paths = {}
