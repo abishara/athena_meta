@@ -192,3 +192,11 @@ def convert_tenx_fq2bcodefa(tenxfq_path, fa_path):
     for _, txt in tenx_fastq_iter(tenxfq_path, fmt='fa-bcode'):
       f.write(txt)
 
+def get_fasta_sizes(fa_path):
+  fasta = pysam.FastaFile(fa_path)
+  ctg_size_map = {}
+  for ctg in fasta.references:
+    size = fasta.get_reference_length(ctg)
+    ctg_size_map[ctg] = size
+  return ctg_size_map
+

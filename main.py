@@ -13,6 +13,8 @@ from athena.stages import collect_reads
 from athena.stages import assemble_bins
 from athena.stages import group_bins
 from athena.stages import assemble_groups
+from athena.stages import bin_meta_reads
+from athena.stages import assemble_meta_bins
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
@@ -52,6 +54,10 @@ def get_stages(options):
       stages["group_bins"] = group_bins.GroupBinsStep
       stages["collect_group_reads"] = collect_reads.CollectGroupReadsStep
       stages["assemble_groups"] = assemble_groups.AssembleGroupsStep
+    elif options.pipe_type == 'meta-asm':
+      stages["bin_reads"] = bin_meta_reads.BinMetaReadsStep
+      stages["collect_bin_reads"] = collect_reads.CollectGroupReadsStep
+      stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
     elif options.pipe_type == 'reads':
       stages["assemble_reads"] = assemble_bins.AssembleSpecReadsStep
     else:
