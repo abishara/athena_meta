@@ -11,6 +11,8 @@ import community
 from .step import StepChunk
 from ..mlib import util
 
+MIN_SEED_SIZE = 500
+
 class BinMetaReadsStep(StepChunk):
 
   @staticmethod
@@ -35,7 +37,7 @@ class BinMetaReadsStep(StepChunk):
     paths = {}
     paths['bins.p'] = self.options.bins_pickle_path
     paths['bins2.p'] = self.options.bins2_pickle_path
-    paths['shit.p'] = 'shit'
+    #paths['shit.p'] = 'shit'
     return paths
 
   def run(self):
@@ -47,9 +49,9 @@ class BinMetaReadsStep(StepChunk):
     ctghmp_bam_path = '/scratch/users/abishara/scratch/scratch.metagenome/align-contig-hmp.sorted.bam'
 
     # find hmp seeds
-    hmp_seedctg_set = set([
-      'BACT_852|gi|145218786|ref|NZ_AAXE02000112.1|',
-    ])
+    #hmp_seedctg_set = set([
+    #  'BACT_852|gi|145218786|ref|NZ_AAXE02000112.1|',
+    #])
     self.logger.log('find hmp seed contigs')
     hmp_seedctg_set = get_hmp_seeds(
       hmpfasta_path,
@@ -71,22 +73,20 @@ class BinMetaReadsStep(StepChunk):
     for hmp_ctg in hmp_ctgset_map:
       filtqname_set |= hmp_ctgset_map[hmp_ctg]
 
-    util.write_pickle(
-      os.path.join(self.options.working_dir, 'hmp-ctgset.p'),
-      filtqname_set,
-    )
-    die
+    #util.write_pickle(
+    #  os.path.join(self.options.working_dir, 'hmp-ctgset.p'),
+    #  filtqname_set,
+    #)
+    #die
 
     self.logger.log('  {} idba0 contigs mapping to seeds'.format(len(filtqname_set)))
 
     tmp_hits_path = '/home/abishara/tmp/tmp_bcode-ctg-hits.txt'
     hits_path      = self.options.bcode_ctg_hits_path + '_bcode-ctg-hits.txt'
-    bcode_idx_path = self.options.bcode_ctg_hits_path + '_bcode-idx.p'
-    ctg_idx_path   = self.options.bcode_ctg_hits_path + '_ctg-idx.p'
 
-    bcode_idx_map = util.load_pickle(bcode_idx_path)
+    bcode_idx_map = self.options.bcode_idx_map
     idx_bcode_map = {v: k for k, v in bcode_idx_map.items()}
-    ctg_idx_map = util.load_pickle(ctg_idx_path)
+    ctg_idx_map = self.options.ctg_idx_map
     idx_ctg_map = {v: k for k, v in ctg_idx_map.items()}
 
     # some contigs may have no barcode hits...
@@ -95,13 +95,20 @@ class BinMetaReadsStep(StepChunk):
       filtqname_set,
     ))
     self.logger.log('  {} idba0 contigs mapping to seeds with barcode hits'.format(len(filtqname_set)))
+    filtqname_set = set(filter(
+      lambda(qname): ctg_size_map[qname] >= MIN_SEED_SIZE,
+      filtqname_set,
+    ))
+    self.logger.log('  {} idba0 contigs mapping to seeds with barcode hits >= {}bp'.format(
+      len(filtqname_set),
+      MIN_SEED_SIZE,
+    ))
     filt_ctgidx_set = set(map(
       lambda(qname): ctg_idx_map[qname],
       filtqname_set,
     ))
 
-    self.logger.log('parsing barcode-contig hits to create graph')
-    G = nx.Graph()
+    self.logger.log('parsing barcode-contig hits to determine barcode sets to compile')
     ctg_bcodes_map = defaultdict(Counter)
     total_reads = 0
     #fout = open(tmp_hits_path, 'w')
@@ -115,136 +122,38 @@ class BinMetaReadsStep(StepChunk):
           if ctg_idx not in filt_ctgidx_set:
             continue
           total_reads += cnt
-          G.add_node(ctg_idx)
           hits_set.add(ctg_idx)
           ctg_bcodes_map[ctg_idx][bcode_idx] += cnt
           #fout.write(line)
-        for u, v in combinations(hits_set, 2):
-          if G.has_edge(u,v):
-            G[u][v]['h'] += 1
-          else:
-            G.add_edge(u,v)
-            G[u][v]['h'] = 1
     #fout.close()
     
-    print 'total reads', total_reads
-    self.logger.log('  - done, {} nodes, {} edges'.format(
-      G.number_of_nodes(),
-      G.number_of_edges(),
-    ))
+    #print 'total reads', total_reads
 
-    self.logger.log('filter for edges with >= 10 barcode hits')
-    to_remove = []
-    for u, v in G.edges_iter():
-      if G[u][v]['h'] < 10:
-        to_remove.append((u,v))
-    G.remove_edges_from(to_remove)
-
-    to_remove = []
-    for v, d in G.degree_iter():
-      if d == 0:
-        to_remove.append(v)
-    G.remove_nodes_from(to_remove)
-
-    self.logger.log('  - done, {} nodes, {} edges'.format(
-      G.number_of_nodes(),
-      G.number_of_edges(),
-    ))
-
-    self.logger.log('find cliques')
-    cliques = sorted(filter(
-      lambda(c): len(c) >= 4,
-      nx.find_cliques(G),
-    ), reverse=True, key=len)
-
-    seen_set = set()
-    n_cliques = []
-    for c in cliques:
-      #if not set(c).issubset(seen_set):
-      #  n_cliques.append(c)
-      if len(set(c)) >= len(set(c) & seen_set) + 2:
-        n_cliques.append(c)
-      #print 'size {}, seen {}'.format(
-      #  len(c),
-      #  len(set(c) & seen_set),
-      #), sorted(c)
-
-      seen_set |= set(c)
-    print 'new cliques', len(n_cliques)
-    cliques = n_cliques
-
-
-    clique_ctgidx_set = set([n for c in cliques for n in c])
-    self.logger.log('  {} cliques of size >= 4'.format(len(cliques)))
-    self.logger.log('  {} contigs out of {} included in cliques'.format(
-      len(clique_ctgidx_set),
-      len(filt_ctgidx_set),
-    ))
-
-    def get_bcode_keys(c):
-      bcode_read_counts = Counter()
-      bcode_ctg_counts = Counter()
-      for ctg in c:
-        bcode_read_counts.update(ctg_bcodes_map[ctg])
-        bcode_ctg_counts.update(ctg_bcodes_map[ctg].keys())
-     
-      bcode_keys = []
-      for bcode, ctg_counts in bcode_ctg_counts.most_common():
-        if ctg_counts <= 1:
-          continue
-        read_counts = bcode_read_counts[bcode]
-        bcode_keys.append((bcode, ctg_counts, read_counts))
-
-      bcode_keys.sort(key=lambda(x): x[1:], reverse=True)
-
-      return bcode_keys
-        
-    # create a bin for each clique
+    # create a bin for each seed contig with sufficient coverage
     bins = []
     bins2 = []
     skipped = 0
     all_bcode_set = set()
-    for i, c in enumerate(cliques):
-      bcode_keys = get_bcode_keys(c)
-      total_reads = sum(map(lambda(x): x[2], bcode_keys))
-      # compute coverage and downsample barcodes if necessary
-      size = sum(map(lambda(ctg): ctg_size_map[idx_ctg_map[ctg]], c))
-      min_ctg_size = min(map(lambda(ctg): ctg_size_map[idx_ctg_map[ctg]], c))
-      if min_ctg_size > 4000:
+    for i, ctg in enumerate(filtqname_set):
+      ctg_idx = ctg_idx_map[ctg]
+      bcode_counts = ctg_bcodes_map[ctg_idx]
+      #bcode_set = set(bcode_counts.keys())
+      bcode_set = set(map(lambda(x): idx_bcode_map[x], bcode_counts.keys()))
+      numreads = sum(bcode_counts.values())
+      size = ctg_size_map[ctg]
+      cov = 95. * numreads / size
+      if cov < 20. or len(bcode_set) < 100:
+        skipped += 1
         continue
-      cov = 95. * total_reads / size
+      all_bcode_set |= bcode_set
+      binid = 'bin.{}'.format(ctg)
 
-      bcode_set = set(map(lambda(x): idx_bcode_map[x[0]], bcode_keys))
-      ctg_set = set(map(lambda(x): idx_ctg_map[x], c))
-      #print 'binid      ', 'bin.{}'.format(i)
-      #print '  - size       ', size
-      #print '  - total_reads', total_reads
-      #print '  - ctg_set', ctg_set
-      #print '  - num barcodes', len(bcode_set)
-      #print '  - cov', cov
-      #die
-      if cov <= 10000 and cov > 10:
-        binid = 'bin.{}'.format(i)
-        downsample_rate = 200. / cov
-        downsample_rate = 800. / len(bcode_set)
-        bcode_set = set(map(lambda(x): idx_bcode_map[x[0]], bcode_keys))
-        all_bcode_set |= bcode_set
-        ctg_set = set(map(lambda(x): idx_ctg_map[x], c))
-        ds_bcode_set = None
-        #print '  - num barcodes', len(bcode_set), cov
-        if downsample_rate < 1:
-          e = int(downsample_rate * len(bcode_set))
-          ds_bcode_set = set(map(lambda(x): idx_bcode_map[x[0]], bcode_keys[:e]))
-          ds_total_reads = sum(map(lambda(x): x[2], bcode_keys[:e]))
-          ds_cov = 95. * ds_total_reads / size
-          #print '    - ds cov', ds_cov
-          
-        bins.append((binid, bcode_set))
-        bins2.append((binid, ds_bcode_set, ctg_set))
+      bins.append((binid, bcode_set))
+      bins2.append((binid, bcode_counts))
     bins.append(('bin.union', all_bcode_set))
       
     self.logger.log('created {} bins from seeds'.format(len(bins)))
-    self.logger.log('  - {} skipped for not containing small contig'.format(skipped))
+    self.logger.log('  - {} skipped for coverage'.format(skipped))
     util.write_pickle(self.options.bins_pickle_path, bins)
     util.write_pickle(self.options.bins2_pickle_path, bins2)
 

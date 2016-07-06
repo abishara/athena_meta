@@ -1,7 +1,7 @@
 import os
 import pysam
 import subprocess
-from collections import defaultdict
+from collections import defaultdict, Counter
 import glob
 import shutil
 from itertools import izip
@@ -12,6 +12,7 @@ from ..assembler_tools.architect import local_assembly
 
 from .step import StepChunk
 from ..mlib import util
+from ..mlib.fq_idx import FastqIndex
 
 # NOTE must be in path
 idbabin_path = 'idba_ud'
@@ -31,25 +32,23 @@ class AssembleMetaBinnedStep(StepChunk):
   def get_steps(options):
     bins = util.load_pickle(options.bins_pickle_path)
     bins2 = util.load_pickle(options.bins2_pickle_path)
-    assert len(bins) == len(bins2)
+    assert len(bins[:-1]) == len(bins2)
     
-    for i, ((binid, bcode_set), (_, ds_bcode_set, hint_ctgs)) in \
-        enumerate(izip(bins, bins2)):
-      yield AssembleMetaBinnedStep(options, binid, bcode_set, hint_ctgs, ds_bcode_set)
+    for i, ((binid, bcode_set), (_, bcode_counts)) in \
+        enumerate(izip(bins[:-1], bins2)):
+      yield AssembleMetaBinnedStep(options, binid, bcode_set, bcode_counts)
 
   def __init__(
     self,
     options,
     binid,
     bcode_set,
-    hint_ctgs,
-    ds_bcode_set=None,
+    bcode_counts,
   ):
     self.options = options
     self.binid = binid
     self.bcode_set = bcode_set
-    self.hint_ctgs = hint_ctgs
-    self.ds_bcode_set = ds_bcode_set
+    self.bcode_counts = bcode_counts
     util.mkdir_p(self.outdir)
 
   def __str__(self):
@@ -61,9 +60,9 @@ class AssembleMetaBinnedStep(StepChunk):
 
   def outpaths(self, final=False):
     paths = {}
-    #paths['contig.fa'] = os.path.join(self.outdir, 'contig.fa')
-    #paths['shit'] = 'shit'
+    paths['local-asm.p'] = os.path.join(self.outdir, 'local-asm.p')
     paths['local-asm-merged.fa'] = os.path.join(self.outdir, 'local-asm-merged.fa')
+    #paths['shit'] = 'shit'
     return paths
 
   def clean_working(self):
@@ -75,111 +74,91 @@ class AssembleMetaBinnedStep(StepChunk):
   def run(self):
 
     self.logger.log('assembling barcoded reads for this bin')
-    self.logger.log('  - {} seed contigs'.format(len(self.hint_ctgs)))
-    print self.hint_ctgs
+    root_ctg = self.binid[4:]
 
     fqdir_path = self.options.get_bin_fq_dir(self.binid)
-    # merge fragments
-    self.logger.log('merging input fq fragments')
-    with util.cd(fqdir_path):
-      cmd = 'cat *frag.fq > tenxreads.fq'
-      subprocess.check_call(cmd, shell=True)
+    asmrootdir_path = self.options.get_bin_asm_dir(self.binid)
+    util.mkdir_p(asmrootdir_path)
+    util.mkdir_p(fqdir_path)
 
-    allfa_path = os.path.join(fqdir_path, 'tenxreads-bcoded.fa')
-    downsamplefa_path = os.path.join(fqdir_path, 'tenxreads-bcoded.ds.fa')
-    lrhintsfa_path = os.path.join(fqdir_path, 'lr-hints.fa')
-    asmdir_path = self.options.get_bin_asm_dir(self.binid)
-    with util.cd(fqdir_path):
-      # create barcoded idba *fa reads
-      util.convert_tenx_fq2bcodefa('tenxreads.fq', 'tenxreads-bcoded.fa')
+    idx_bcode_map = {v: k for k, v in self.options.bcode_idx_map.items()}
+    bcode_counts = dict(map(
+      lambda(i, c): (idx_bcode_map[i], c),
+      self.bcode_counts.items(),
+    ))
 
-      ## downsample for faster idba assembly if needed
-      #if self.ds_bcode_set != None:
-      #  self.logger.log('downsample reads')
-      #  self.logger.log('  - orig barcodes {}, new barcodes {}'.format(
-      #    len(self.bcode_set),
-      #    len(self.ds_bcode_set),
-      #  ))
-      #  with open('tenxreads-bcoded.ds.fa', 'w') as fout:
-      #    for e in util.fa_iter('tenxreads-bcoded.fa'):
-      #      bcode = e.qname.split('$')[0]
-      #      if bcode in self.ds_bcode_set:
-      #        fout.write(e.txt)
-      #else:
-      #  pass
-      #  shutil.copyfile('tenxreads-bcoded.fa', 'tenxreads-bcoded.ds.fa')
+    local_asms = get_local_asms(
+      root_ctg, 
+      self.bcode_set,
+      bcode_counts,
+      self.options.reads_ctg_bam_path,
+    )
+    util.write_pickle(
+      os.path.join(asmrootdir_path, 'local-asm.p'),
+      local_asms,
+    )
 
+    self.logger.log('found {} local assemblies'.format(len(local_asms)))
+
+    rootfq_path = self.options.longranger_fqs_path
+    tenxfq_paths = list(glob.glob(rootfq_path + '/chnk*/files/*fastq'))
+    for i, (n_ctg, bcode_set, ds_bcode_set) in enumerate(local_asms):
+      self.logger.log('assembling with neighbor {}'.format(n_ctg))
+      self.logger.log('  - {} orig barcodes'.format(len(bcode_set)))
+      self.logger.log('  - {} downsampled barcodes'.format(len(ds_bcode_set)))
+
+      lrhintsfa_path = os.path.join(fqdir_path, 'lr-hints.{}.fa'.format(i))
+      readsfa_path = os.path.join(fqdir_path, 'reads.{}.fa'.format(i))
+      asmdir_path = os.path.join(asmrootdir_path, 'local-asm.{}'.format(i))
+
+      # filter input reads
+      get_bcode_reads(
+        tenxfq_paths,
+        readsfa_path,
+        ds_bcode_set,
+      )
       # create long read hints
-      with open('lr-hints.fa', 'w') as fout, \
-           open('lr-hints2.fa', 'w') as fout2:
-        ctg_fasta = pysam.FastaFile(self.options.ctgfasta_path)
-        for ctg in self.hint_ctgs:
-          seq = str(ctg_fasta.fetch(ctg).upper())
-          fout2.write('>{}\n{}\n'.format(ctg, seq))
-          for _ in xrange(10):
-            fout.write('>{}\n{}\n'.format(ctg, seq))
-
-    self.logger.log('performing idba assembly')
-
-    # initial idba assembly
-    #self.do_idba_assemble(
-    #  downsamplefa_path,
-    #  asmdir_path,
-    #  lrhintsfa_path,
-    #)
-    util.mkdir_p(asmdir_path)
-
-    with util.cd(asmdir_path):
-
-      shutil.copy('../fqs/lr-hints2.fa', '.')
-      cmd = 'bwa index lr-hints2.fa'
-      subprocess.check_call(cmd, shell=True)
-
-      # align reads to contigs
-      self.logger.log('aligning reads to contigs')
-      cmd = 'bwa mem -p lr-hints2.fa {} > align.on-contig.sam'.format(
-        '../fqs/tenxreads-bcoded.fa'
+      get_lrhints_fa(
+        [root_ctg, n_ctg],
+        self.options.ctgfasta_path,
+        lrhintsfa_path,
       )
-      subprocess.check_call(cmd, shell=True)
-      cmd = 'cat align.on-contig.sam | samtools view -bS - | samtools sort - align.on-contig.sorted'
-      subprocess.check_call(cmd, shell=True)
 
-      # filter bad reads, create idba *fa reads with only filtered reads
-      allbam_path = 'align.on-contig.sorted.bam'
-      #filtbam_path = 'align.on-contig.sorted.filt.bam'
-      #filter_alignments(
-      #  allbam_path,
-      #  filtbam_path,
-      #)
-      cmd = 'samtools index {}'.format(allbam_path)
-      subprocess.check_call(cmd, shell=True)
+      # initial idba assembly
+      self.logger.log('  - performing idba assembly')
+      self.do_idba_assemble(
+        readsfa_path,
+        asmdir_path,
+        lrhintsfa_path,
+      )
 
-      # create edges.tsv and containment files from architect
-      self.logger.log('generating local reassembly inputs')
-      cmd = 'python {} -b {} -f {} -e {}'.format(
-        edgesbin_path,
-        allbam_path,
-        'lr-hints2.fa',
-        'edges.tsv',
-      )
-      subprocess.check_call(cmd, shell=True)
-      cmd = 'python {} -b {} -c {}'.format(
-        containmentbin_path,
-        allbam_path,
-        'containment',
-      )
-      subprocess.check_call(cmd, shell=True)
+    # merge output contigs from local assemblies
+    self.logger.log('merge long output contigs from local assemblies')
+    mergedasm_path = os.path.join(asmrootdir_path, 'local-asm-merged.fa')
+    total_asm_contigs = 0
+    total_asm_bp = 0
+    with open(mergedasm_path, 'w') as fout:
+      for i, (n_ctg, _, _) in enumerate(local_asms):
+        asmdir_path = os.path.join(asmrootdir_path, 'local-asm.{}'.format(i))
+        contig_path = os.path.join(asmdir_path, 'contig.fa')
+        fasta = pysam.FastaFile(contig_path)
+        for contig in sorted(
+          fasta.references,
+          key=lambda(c): fasta.get_reference_length(c),
+          reverse=True,
+        ):
+          seq = str(fasta.fetch(contig).upper())
+          if len(seq) < 2000:
+            break
+          total_asm_contigs += 1
+          total_asm_bp += len(seq)
+          fout.write('>{}.{}.{}\n'.format(root_ctg, contig, i))
+          fout.write(str(seq) + '\n')
 
-      # run architect for local assemblies
-      local_assembly.setup_cwd()
-      self.logger.log('performing local reassembly')
-      architect.do_local_reassembly(
-        'lr-hints2.fa',
-        'edges.tsv',
-        'containment',
-        '../fqs/tenxreads-bcoded.fa',
-      )
-    
+    self.logger.log('  - {} contigs covering {} bases'.format(
+      total_asm_contigs,
+      total_asm_bp))
+      
     def copyfinal(src, dest):
       shutil.copyfile(
         os.path.join(self.options.get_bin_asm_dir(self.binid), src),
@@ -187,7 +166,8 @@ class AssembleMetaBinnedStep(StepChunk):
       )
 
     self.logger.log('copying deliverables to final')
-    copyfinal('local-assemblies/local-asm-merged.fa', 'local-asm-merged.fa')
+    copyfinal('local-asm-merged.fa', 'local-asm-merged.fa')
+    copyfinal('local-asm.p', 'local-asm.p')
 
     self.logger.log('done')
 
@@ -196,16 +176,17 @@ class AssembleMetaBinnedStep(StepChunk):
 #--------------------------------------------------------------------------
   def do_idba_assemble(
     self,
-    downsamplefa_path,
+    readsfa_path,
     asmdir_path,
-    lrhintsfa_path=None,
+    lrhintsfa_path,
   ):
-    cmd = '{} -r {} -l {} -o {}'.format(
+    cmd = '{} --maxk 60 -r {} -l {} -o {}'.format(
       idbabin_path,
-      downsamplefa_path,
+      readsfa_path,
       lrhintsfa_path,
       asmdir_path,
     )
+    #return 
     cmd = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
     retcode = cmd.wait()
     print "::::", retcode
@@ -223,54 +204,105 @@ class AssembleMetaBinnedStep(StepChunk):
         "something funky happened while running idba_ud (got error code "
         "{}) but there's not much we can do so continuing".format(retcode))
 
-def filter_alignments(in_path, out_path):
-  def get_clip_info(read):
-    (c, l) = read.cigar[0]
-    lclip = (c in [4,5])
-    (c, l) = read.cigar[-1]
-    rclip = (c in [4,5])
-  
-    return (lclip, rclip)
-  
-  fin = pysam.Samfile(in_path, 'rb')
-  fullrid_set = set()
-  for read in fin:
-    rid = (read.qname, read.is_read1)
+
+def get_local_asms(
+  root_ctg, 
+  bcode_set,
+  bcode_counts,
+  bam_path,
+):
+  # FIXME need to fetch the barcoded reads from the neighbor contigs as well
+  def get_barcode(read):
+    filt_list = filter(lambda(k, v): k == 'BX', read.tags)
+    if filt_list == []: 
+      return None
+    else:
+      k, v = filt_list[0]
+      return v
+
+  fhandle = pysam.Samfile(bam_path, 'rb')
+  n_ctg_bcode_counts = defaultdict(Counter)
+  n_ctg_counts = Counter()
+  for read in fhandle.fetch(root_ctg):
     if read.is_unmapped:
       continue
-    (lclip, rclip) = get_clip_info(read)
-    if not (lclip or rclip):
-      fullrid_set.add(rid)
-  fin.close()
-  
-  fin = pysam.Samfile(in_path, 'rb')
-  fout = pysam.Samfile(out_path, 'wb', template=fin)
-  for read in fin:
-    rid = (read.qname, read.is_read1)
-    prid = (read.qname, not read.is_read1)
-    if rid in fullrid_set or prid in fullrid_set:
-      fout.write(read)
-    #if rid in fullrid_set and prid in fullrid_set:
-    #  fout.write(read)
-  fin.close()
-  fout.close()
-  return
+    # skip low quality links for now
+    if read.mapq < 10:
+      continue
+    bcode = get_barcode(read)
+    if bcode == None:
+      continue
+    p_ctg = fhandle.getrname(read.next_reference_id)    
+    n_ctg_bcode_counts[p_ctg][bcode] += 1
+    n_ctg_counts[p_ctg] += 1
 
-def get_filtered_fa(
-  filtbam_path,
+  n_ctgs = filter(
+    lambda(c): (
+      c != root_ctg and 
+      n_ctg_counts[c] >= 3 and 
+      # only perform local asm in this bin if neighbor contig is
+      # lexicographically smaller
+      c < root_ctg
+    ),
+    n_ctg_counts,
+  )
+
+  local_asms = []
+  for n_ctg in n_ctgs:
+    assert n_ctg_counts[n_ctg] >= 3
+    n_bcode_counts = n_ctg_bcode_counts[n_ctg]
+    n_bcode_set = set(n_bcode_counts.keys())
+    i_bcode_set = n_bcode_set & bcode_set
+    ds_bcode_set = i_bcode_set
+    # downsample to barcodes with the most reads
+    if len(i_bcode_set) > 400:
+      ds_bcode_set = set(sorted(
+        i_bcode_set,
+        reverse=True,
+        key=lambda(b): bcode_counts[b] + n_bcode_counts[b],
+      )[:400])
+    local_asms.append(
+      (n_ctg, i_bcode_set, ds_bcode_set)
+    )
+
+  fhandle.close()
+  return local_asms
+
+def get_lrhints_fa(
+  ctgs,
   infa_path,
   outfa_path,
 ):
-  # load all filtered query names to accept
-  qname_set = set()
-  fin = pysam.Samfile(filtbam_path, 'rb')
-  for read in fin:
-    qname_set.add(read.qname)
-  fin.close()
-
   with open(outfa_path, 'w') as fout:
-    for e in util.fa_iter(infa_path):
-      if e.qname_full in qname_set:
-        fout.write(e.txt)
+    ctg_fasta = pysam.FastaFile(infa_path)
+    for ctg in ctgs:
+      seq = str(ctg_fasta.fetch(ctg).upper())
+      for _ in xrange(10):
+        fout.write('>{}\n{}\n'.format(ctg, seq))
 
-  
+def get_bcode_reads(infq_paths, outfa_path, bcode_set):
+  seen_set = set()
+  with open(outfa_path, 'w') as fout:
+    for fq_path in infq_paths:
+      with FastqIndex(fq_path) as idx:
+        for bcode in bcode_set & idx.bcode_set:
+          for e in idx.get_reads(bcode):
+            # tag qname with barcode
+            nqname = '{}${}'.format(bcode, e.qname)
+            fout.write('>{}\n'.format(nqname))
+            fout.write('{}\n'.format(e.seq1))
+            fout.write('>{}\n'.format(nqname))
+            fout.write('{}\n'.format(e.seq2))
+            seen_set.add(e.bcode)
+  assert seen_set.issubset(bcode_set), 'not all barcodes loaded'
+  return
+
+#def filter_alignments(in_path, out_path):
+#  def get_clip_info(read):
+#    (c, l) = read.cigar[0]
+#    lclip = (c in [4,5])
+#    (c, l) = read.cigar[-1]
+#    rclip = (c in [4,5])
+#  
+#    return (lclip, rclip)
+

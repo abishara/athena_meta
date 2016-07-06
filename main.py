@@ -6,10 +6,10 @@ import logging
 from athena.mlib import util
 
 from athena import pipeline
-from athena.options import RefAsmOptions, ReadsOptions, MetaAsmOptions
+from athena.options import MetaAsmOptions
 
 from athena.stages import haplotype_reads
-from athena.stages import collect_reads
+from athena.stages import index_reads
 from athena.stages import assemble_bins
 from athena.stages import group_bins
 from athena.stages import assemble_groups
@@ -47,19 +47,10 @@ def clean(options):
 def get_stages(options):
     stages = collections.OrderedDict()
 
-    if options.pipe_type == 'ref-asm':
-      stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
-      stages["collect_bin_reads"] = collect_reads.CollectBinReadsStep
-      stages["assemble_bins"] = assemble_bins.AssembleBinnedStep
-      stages["group_bins"] = group_bins.GroupBinsStep
-      stages["collect_group_reads"] = collect_reads.CollectGroupReadsStep
-      stages["assemble_groups"] = assemble_groups.AssembleGroupsStep
-    elif options.pipe_type == 'meta-asm':
+    if options.pipe_type == 'meta-asm':
       stages["bin_reads"] = bin_meta_reads.BinMetaReadsStep
-      stages["collect_bin_reads"] = collect_reads.CollectGroupReadsStep
+      stages["index_reads"] = index_reads.IndexReadsStep
       stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
-    elif options.pipe_type == 'reads':
-      stages["assemble_reads"] = assemble_bins.AssembleSpecReadsStep
     else:
       raise Exception("Pipeline not implemented yet")
 
@@ -85,9 +76,9 @@ def main(argv):
   """
 
   help_str = '''
-  usage: athena.py <path/to/config.json> [pipeline]
+  usage: athena_meta.py <path/to/config.json> [pipeline]
 
-  pipeline: {ref-asm, reads, meta-asm}, default: ref-asm
+  pipeline: {meta-asm}, default: meta-asm
 
   NOTE: dirname(config.json) specifies root output directory
   '''
@@ -96,12 +87,10 @@ def main(argv):
     sys.exit(1)
 
   config_path = argv[1]
-  pipe_type = 'ref-asm'
+  pipe_type = 'meta-asm'
   if len(argv) == 3:
     pipe_type = argv[2]
     if pipe_type not in [
-      'ref-asm',
-      'reads',
       'meta-asm',
     ]:
       print >> sys.stderr, 'error: incorrect pipeline specified'
@@ -109,8 +98,6 @@ def main(argv):
 
   # load config json
   options_cls = {
-    'ref-asm' : RefAsmOptions,
-    'reads'   : ReadsOptions,
     'meta-asm': MetaAsmOptions,
   }[pipe_type]
   options = options_cls.deserialize(config_path)
