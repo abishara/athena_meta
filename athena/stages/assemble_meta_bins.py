@@ -26,6 +26,9 @@ architect_scripts_path = os.path.join(
 edgesbin_path = os.path.join(architect_scripts_path, 'pe-connections.py')
 containmentbin_path = os.path.join(architect_scripts_path, 'bam_to_containment.py')
 
+MIN_SEED_SIZE = 500
+MIN_SEED_SIZE = 400
+
 class AssembleMetaBinnedStep(StepChunk):
 
   @staticmethod
@@ -76,6 +79,12 @@ class AssembleMetaBinnedStep(StepChunk):
     self.logger.log('assembling barcoded reads for this bin')
     root_ctg = self.binid[4:]
 
+    ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
+    seed_ctgs = set(filter(
+      lambda(c): ctg_size_map[c] >= MIN_SEED_SIZE,
+      ctg_size_map.keys(),
+    ))
+
     fqdir_path = self.options.get_bin_fq_dir(self.binid)
     asmrootdir_path = self.options.get_bin_asm_dir(self.binid)
     util.mkdir_p(asmrootdir_path)
@@ -88,6 +97,7 @@ class AssembleMetaBinnedStep(StepChunk):
     ))
 
     local_asms = get_local_asms(
+      seed_ctgs,
       root_ctg, 
       self.bcode_set,
       bcode_counts,
@@ -103,6 +113,8 @@ class AssembleMetaBinnedStep(StepChunk):
     rootfq_path = self.options.longranger_fqs_path
     tenxfq_paths = list(glob.glob(rootfq_path + '/chnk*/files/*fastq'))
     for i, (n_ctg, bcode_set, ds_bcode_set) in enumerate(local_asms):
+      ## FIXME remove
+      #continue
       self.logger.log('assembling with neighbor {}'.format(n_ctg))
       self.logger.log('  - {} orig barcodes'.format(len(bcode_set)))
       self.logger.log('  - {} downsampled barcodes'.format(len(ds_bcode_set)))
@@ -152,7 +164,7 @@ class AssembleMetaBinnedStep(StepChunk):
             break
           total_asm_contigs += 1
           total_asm_bp += len(seq)
-          fout.write('>{}.{}.{}\n'.format(root_ctg, contig, i))
+          fout.write('>{}.{}${}.{}\n'.format(root_ctg, n_ctg, contig, i))
           fout.write(str(seq) + '\n')
 
     self.logger.log('  - {} contigs covering {} bases'.format(
@@ -180,6 +192,7 @@ class AssembleMetaBinnedStep(StepChunk):
     asmdir_path,
     lrhintsfa_path,
   ):
+    #cmd = '{} -r {} -l {} -o {}'.format(
     cmd = '{} --maxk 60 -r {} -l {} -o {}'.format(
       idbabin_path,
       readsfa_path,
@@ -206,6 +219,7 @@ class AssembleMetaBinnedStep(StepChunk):
 
 
 def get_local_asms(
+  seed_ctgs,
   root_ctg, 
   bcode_set,
   bcode_counts,
@@ -222,6 +236,8 @@ def get_local_asms(
 
   fhandle = pysam.Samfile(bam_path, 'rb')
   n_ctg_bcode_counts = defaultdict(Counter)
+  n_ctg_bcode_counts = defaultdict(Counter)
+  n_ctg_bcodes = defaultdict(set)
   n_ctg_counts = Counter()
   for read in fhandle.fetch(root_ctg):
     if read.is_unmapped:
@@ -234,15 +250,21 @@ def get_local_asms(
       continue
     p_ctg = fhandle.getrname(read.next_reference_id)    
     n_ctg_bcode_counts[p_ctg][bcode] += 1
+    n_ctg_bcodes[p_ctg].add(bcode)
     n_ctg_counts[p_ctg] += 1
 
+  # NOTE consider only doing local asms with neighbor if the neighbor is a
+  # large enough seed contig
   n_ctgs = filter(
     lambda(c): (
       c != root_ctg and 
+      # at least 3 mate pair connections
       n_ctg_counts[c] >= 3 and 
+      # at least 15 barcodes
+      len(n_ctg_bcodes[c]) >= 15 and
       # only perform local asm in this bin if neighbor contig is
       # lexicographically smaller
-      c < root_ctg
+      (c < root_ctg or c not in seed_ctgs)
     ),
     n_ctg_counts,
   )
@@ -264,6 +286,15 @@ def get_local_asms(
     local_asms.append(
       (n_ctg, i_bcode_set, ds_bcode_set)
     )
+
+  # do local reassembly of the root contig
+  ds_bcode_set = bcode_set
+  if len(bcode_set) > 400:
+    ds_bcode_set = set(random.sample(bcode_set, 400))
+
+  local_asms.append(
+    (root_ctg, bcode_set, ds_bcode_set)
+  )
 
   fhandle.close()
   return local_asms

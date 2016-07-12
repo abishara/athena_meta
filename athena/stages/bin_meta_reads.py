@@ -12,6 +12,7 @@ from .step import StepChunk
 from ..mlib import util
 
 MIN_SEED_SIZE = 500
+MIN_SEED_SIZE = 400
 
 class BinMetaReadsStep(StepChunk):
 
@@ -49,14 +50,20 @@ class BinMetaReadsStep(StepChunk):
     ctghmp_bam_path = '/scratch/users/abishara/scratch/scratch.metagenome/align-contig-hmp.sorted.bam'
 
     # find hmp seeds
-    #hmp_seedctg_set = set([
-    #  'BACT_852|gi|145218786|ref|NZ_AAXE02000112.1|',
-    #])
     self.logger.log('find hmp seed contigs')
-    hmp_seedctg_set = get_hmp_seeds(
-      hmpfasta_path,
-      ctghmp_bam_path,
-    )
+    #hmp_seedctg_set = get_hmp_seeds(
+    #  hmpfasta_path,
+    #  ctghmp_bam_path,
+    #)
+    hmp_seedctg_set = set([
+      'BACT_852|gi|145218786|ref|NZ_AAXE02000112.1|',
+      # new seeds
+      'BACT_847|gi|224462083|gb|ACDQ01000017.1|',
+      'BACT_1022|gi|197302419|ref|NZ_ABOU02000032.1|',
+      'BACT_847|gi|224462087|gb|ACDQ01000013.1|',
+      'BACT_1022|gi|197303624|ref|NZ_ABOU02000050.1|',
+      'BACT_852|gi|145218676|ref|NZ_AAXE02000002.1|',
+    ])
     hmpctg_size_map = util.get_fasta_sizes(hmpfasta_path)
     hmp_bases = sum(map(lambda(c): hmpctg_size_map[c], hmp_seedctg_set))
     self.logger.log('  {} seeds covering {} bases'.format(
@@ -73,6 +80,17 @@ class BinMetaReadsStep(StepChunk):
     for hmp_ctg in hmp_ctgset_map:
       filtqname_set |= hmp_ctgset_map[hmp_ctg]
 
+    #fasta = pysam.FastaFile(hmpfasta_path)
+    #miniref_path = os.path.join(
+    #  self.options.working_dir,
+    #  'miniref',
+    #  'hmpseedref.fa', 
+    #)
+    #with open(miniref_path, 'w') as fout:
+    #  for ctg in hmp_ctgset_map:
+    #    seq = str(fasta.fetch(ctg).upper())
+    #    fout.write('>{}\n'.format(ctg))
+    #    fout.write('{}\n'.format(seq))
     #util.write_pickle(
     #  os.path.join(self.options.working_dir, 'hmp-ctgset.p'),
     #  filtqname_set,
@@ -142,7 +160,13 @@ class BinMetaReadsStep(StepChunk):
       numreads = sum(bcode_counts.values())
       size = ctg_size_map[ctg]
       cov = 95. * numreads / size
-      if cov < 20. or len(bcode_set) < 100:
+      if cov < 10. or len(bcode_set) < 50.:
+      #if cov < 20. or len(bcode_set) < 100:
+        self.logger.log(' skipping {} for cov: {} depth, {} bcodes'.format(
+          ctg,
+          cov,
+          len(bcode_set)
+        ))
         skipped += 1
         continue
       all_bcode_set |= bcode_set
