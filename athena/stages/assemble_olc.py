@@ -73,8 +73,8 @@ class AssembleOLCStep(StepChunk):
         fout.write(str(seq) + '\n')
     input_paths.append(seedsfa_path)
 
-    util.concat_files(input_paths, mergedfa_path)
-    die
+    #util.concat_files(input_paths, mergedfa_path)
+    #die
 
     #self.logger.log('  {} contigs, covering {} bases'.format(
     #  total_asm_contigs,

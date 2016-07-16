@@ -58,11 +58,16 @@ class BinMetaReadsStep(StepChunk):
     hmp_seedctg_set = set([
       'BACT_852|gi|145218786|ref|NZ_AAXE02000112.1|',
       # new seeds
-      'BACT_847|gi|224462083|gb|ACDQ01000017.1|',
-      'BACT_1022|gi|197302419|ref|NZ_ABOU02000032.1|',
-      'BACT_847|gi|224462087|gb|ACDQ01000013.1|',
-      'BACT_1022|gi|197303624|ref|NZ_ABOU02000050.1|',
+      #'BACT_847|gi|224462083|gb|ACDQ01000017.1|',
+      #'BACT_1022|gi|197302419|ref|NZ_ABOU02000032.1|',
+      #'BACT_847|gi|224462087|gb|ACDQ01000013.1|',
+      #'BACT_1022|gi|197303624|ref|NZ_ABOU02000050.1|',
       'BACT_852|gi|145218676|ref|NZ_AAXE02000002.1|',
+      # newer seeds
+      'BACT_545|gi|253795376|ref|NZ_ACOP02000046.1|',
+      'BACT_496|gi|138274911|ref|NZ_AAXB02000016.1|',
+      'BACT_852|gi|145218782|ref|NZ_AAXE02000108.1|',
+      'BACT_171|gi|134301167|ref|NZ_AAVM02000010.1|',
     ])
     hmpctg_size_map = util.get_fasta_sizes(hmpfasta_path)
     hmp_bases = sum(map(lambda(c): hmpctg_size_map[c], hmp_seedctg_set))

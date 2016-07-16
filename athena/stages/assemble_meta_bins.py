@@ -199,7 +199,6 @@ class AssembleMetaBinnedStep(StepChunk):
       lrhintsfa_path,
       asmdir_path,
     )
-    #return 
     cmd = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
     retcode = cmd.wait()
     print "::::", retcode
@@ -236,7 +235,6 @@ def get_local_asms(
 
   fhandle = pysam.Samfile(bam_path, 'rb')
   n_ctg_bcode_counts = defaultdict(Counter)
-  n_ctg_bcode_counts = defaultdict(Counter)
   n_ctg_bcodes = defaultdict(set)
   n_ctg_counts = Counter()
   for read in fhandle.fetch(root_ctg):
@@ -249,9 +247,25 @@ def get_local_asms(
     if bcode == None:
       continue
     p_ctg = fhandle.getrname(read.next_reference_id)    
-    n_ctg_bcode_counts[p_ctg][bcode] += 1
-    n_ctg_bcodes[p_ctg].add(bcode)
     n_ctg_counts[p_ctg] += 1
+
+  n_cand_ctgs = filter(
+    lambda(c): (c != root_ctg and n_ctg_counts[c] >= 3),
+    n_ctg_counts,
+  )
+  for n_ctg in n_cand_ctgs:
+    for read in fhandle.fetch(n_ctg):
+      if read.is_unmapped:
+        continue
+      # skip low quality links for now
+      if read.mapq < 10:
+        continue
+      bcode = get_barcode(read)
+      if bcode == None:
+        continue
+      n_ctg_bcodes[n_ctg].add(bcode)
+      n_ctg_bcode_counts[n_ctg][bcode] += 1
+
 
   # NOTE consider only doing local asms with neighbor if the neighbor is a
   # large enough seed contig
@@ -261,19 +275,19 @@ def get_local_asms(
       # at least 3 mate pair connections
       n_ctg_counts[c] >= 3 and 
       # at least 15 barcodes
-      len(n_ctg_bcodes[c]) >= 15 and
+      len(n_ctg_bcodes[c] & bcode_set) >= 15 and
       # only perform local asm in this bin if neighbor contig is
       # lexicographically smaller
       (c < root_ctg or c not in seed_ctgs)
     ),
-    n_ctg_counts,
+    n_cand_ctgs,
   )
 
   local_asms = []
   for n_ctg in n_ctgs:
     assert n_ctg_counts[n_ctg] >= 3
     n_bcode_counts = n_ctg_bcode_counts[n_ctg]
-    n_bcode_set = set(n_bcode_counts.keys())
+    n_bcode_set = n_ctg_bcodes[n_ctg]
     i_bcode_set = n_bcode_set & bcode_set
     ds_bcode_set = i_bcode_set
     # downsample to barcodes with the most reads
