@@ -165,7 +165,7 @@ class BinMetaReadsStep(StepChunk):
       numreads = sum(bcode_counts.values())
       size = ctg_size_map[ctg]
       cov = 95. * numreads / size
-      if cov < 10. or len(bcode_set) < 50.:
+      if cov < 10. or len(bcode_set) < 30.:
       #if cov < 20. or len(bcode_set) < 100:
         self.logger.log(' skipping {} for cov: {} depth, {} bcodes'.format(
           ctg,

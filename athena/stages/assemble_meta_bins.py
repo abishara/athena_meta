@@ -41,8 +41,8 @@ class AssembleMetaBinnedStep(StepChunk):
     
     for i, ((binid, bcode_set), (_, bcode_counts)) in \
         enumerate(izip(bins[:-1], bins2)):
-      if binid != 'bin.contig-100_5761':
-        continue
+      #if binid != 'bin.contig-100_5761':
+      #  continue
       yield AssembleMetaBinnedStep(options, binid, bcode_set, bcode_counts)
 
   def __init__(
@@ -157,7 +157,13 @@ class AssembleMetaBinnedStep(StepChunk):
       for i, (n_ctg, _, _) in enumerate(local_asms):
         asmdir_path = os.path.join(asmrootdir_path, 'local-asm.{}'.format(i))
         contig_path = os.path.join(asmdir_path, 'contig.fa')
-        fasta = pysam.FastaFile(contig_path)
+        try:
+          fasta = pysam.FastaFile(contig_path)
+        except Exception as e:
+          self.logger.log('could not open fasta {}'.format(contig_path))
+          self.logger.log(str(e))
+          self.logger.log('skipping')
+          continue
         for contig in sorted(
           fasta.references,
           key=lambda(c): fasta.get_reference_length(c),
