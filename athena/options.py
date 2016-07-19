@@ -152,9 +152,6 @@ class MetaAsmOptions(Options):
     @property
     def bins_pickle_path(self): 
         return os.path.join(self.working_dir, 'bins.p')
-    @property
-    def bins2_pickle_path(self): 
-        return os.path.join(self.working_dir, 'bins2.p')
 
     # FIXME hacks to work with collect reads for now
     @property

@@ -24,13 +24,10 @@ class AssembleMetaBinnedStep(StepChunk):
   @staticmethod
   def get_steps(options):
     bins = util.load_pickle(options.bins_pickle_path)
-    bins2 = util.load_pickle(options.bins2_pickle_path)
-    assert len(bins[:-1]) == len(bins2)
     
-    for i, ((binid, bcode_set), (_, bcode_counts)) in \
-        enumerate(izip(bins[:-1], bins2)):
-      if binid != 'bin.contig-100_113':
-        continue
+    for i, binid in bins:
+      #if binid != 'bin.contig-100_113':
+      #  continue
       yield AssembleMetaBinnedStep(options, binid)
 
   def __init__(
@@ -71,6 +68,35 @@ class AssembleMetaBinnedStep(StepChunk):
 
     asmrootdir_path = self.options.get_bin_asm_dir(self.binid)
     util.mkdir_p(asmrootdir_path)
+
+    def get_barcode(read):
+      filt_list = filter(lambda(k, v): k == 'BX', read.tags)
+      if filt_list == []: 
+        return None
+      else:
+        k, v = filt_list[0]
+        return v
+
+    # check enough read/barcode coverage to warrant denovo assembly
+    numreads = 0
+    bcodes = set()
+    fhandle = pysam.Samfile(self.options.reads_ctg_bam_path, 'rb')
+    for read in fhandle.fetch(root_ctg):
+      if read.is_unmapped or read.mapq < 10:
+        continue
+      numreads += 1
+      bcode = get_barcode(read)
+      if bcode != None:
+        bcodes.add(bcode)
+    fhandle.close()
+    size = ctg_size_map[ctg]
+    cov = 95. * numreads / size
+    if cov < 10. or len(bcodes) < 30.:
+      self.logger.log('seed contig does not have high enough coverage')
+      self.logger.log('  - {} bcodes, {}x'.format(len(bcodes), cov))
+      util.touch(self.outpaths()['local-asm-merged.fa'])
+      self.logger.log('done')
+      return
 
     # create a local assembler for this root contig
     asm = LocalAssembler(
@@ -126,7 +152,7 @@ class AssembleMetaBinnedStep(StepChunk):
             break
           total_asm_contigs += 1
           total_asm_bp += len(seq)
-          fout.write('>{}.{}${}.{}\n'.format(root_ctg, n_ctg, contig, i))
+          fout.write('>{}.{}${}.{}\n'.format(local_asm.root_ctg, local_asm.link_ctg, contig, i))
           fout.write(str(seq) + '\n')
 
     self.logger.log('  - {} contigs covering {} bases'.format(
