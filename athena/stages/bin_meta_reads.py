@@ -85,17 +85,15 @@ class BinMetaReadsStep(StepChunk):
     for hmp_ctg in hmp_ctgset_map:
       filtqname_set |= hmp_ctgset_map[hmp_ctg]
 
-    #fasta = pysam.FastaFile(hmpfasta_path)
-    #miniref_path = os.path.join(
-    #  self.options.working_dir,
-    #  'miniref',
-    #  'hmpseedref.fa', 
-    #)
-    #with open(miniref_path, 'w') as fout:
-    #  for ctg in hmp_ctgset_map:
-    #    seq = str(fasta.fetch(ctg).upper())
-    #    fout.write('>{}\n'.format(ctg))
-    #    fout.write('{}\n'.format(seq))
+    fasta = pysam.FastaFile(hmpfasta_path)
+    minirefdir_path = os.path.join(self.options.working_dir, 'miniref')
+    util.mkdir_p(minirefdir_path)
+    miniref_path = os.path.join(minirefdir_path, 'hmpseedref.fa')
+    with open(miniref_path, 'w') as fout:
+      for ctg in hmp_ctgset_map:
+        seq = str(fasta.fetch(ctg).upper())
+        fout.write('>{}\n'.format(ctg))
+        fout.write('{}\n'.format(seq))
     #util.write_pickle(
     #  os.path.join(self.options.working_dir, 'hmp-ctgset.p'),
     #  filtqname_set,

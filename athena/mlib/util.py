@@ -234,3 +234,18 @@ def get_fasta_sizes(fa_path):
     ctg_size_map[ctg] = size
   return ctg_size_map
 
+#--------------------------------------------------------------------------
+# id 
+#--------------------------------------------------------------------------
+class IdGenerator:
+  def __init__(self, start=0):
+    self.counter = start
+
+  def get_next(self):
+    i = self.counter
+    self.counter += 1
+    return i
+
+  def set_counter(self, n): 
+    self.counter = n 
+
