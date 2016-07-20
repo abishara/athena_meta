@@ -25,18 +25,22 @@ class AssembleMetaBinnedStep(StepChunk):
   def get_steps(options):
     bins = util.load_pickle(options.bins_pickle_path)
     
-    for i, binid in bins:
-      #if binid != 'bin.contig-100_113':
+    for i, (binid, seeds) in enumerate(bins):
+      #if 'contig-100_175334' not in seeds:
       #  continue
-      yield AssembleMetaBinnedStep(options, binid)
+      #print 'binid', binid
+      #print 'seeds', seeds
+      yield AssembleMetaBinnedStep(options, binid, seeds)
 
   def __init__(
     self,
     options,
     binid,
+    seeds,
   ):
     self.options = options
     self.binid = binid
+    self.seeds = seeds
     util.mkdir_p(self.outdir)
 
   def __str__(self):
@@ -49,7 +53,6 @@ class AssembleMetaBinnedStep(StepChunk):
   def outpaths(self, final=False):
     paths = {}
     paths['local-asm-merged.fa'] = os.path.join(self.outdir, 'local-asm-merged.fa')
-    #paths['local-asm.p'] = os.path.join(self.outdir, 'local-asm.p')
     #paths['shit'] = 'shit'
     return paths
 
@@ -61,13 +64,38 @@ class AssembleMetaBinnedStep(StepChunk):
 
   def run(self):
 
-    self.logger.log('assembling barcoded reads for this bin')
-    root_ctg = self.binid[4:]
-
-    ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
+    self.logger.log('performing local assembly for {} seeds'.format(
+      len(self.seeds)))
 
     asmrootdir_path = self.options.get_bin_asm_dir(self.binid)
     util.mkdir_p(asmrootdir_path)
+
+    out_paths = []
+    for ctg in self.seeds:
+      asmdir = os.path.join(asmrootdir_path, ctg)
+      util.mkdir_p(asmdir)
+      pass_path = os.path.join(asmdir, 'pass')
+      if os.path.isfile(pass_path):
+        self.logger.log('seed {} output already generated'.format(ctg))
+        continue
+      self.do_local_assembly(ctg, asmdir)
+      out_path = os.path.join(asmdir, 'local-asm-merged.fa')
+      assert os.path.isfile(out_path), \
+        "output does not exist {}".format(out_path)
+      out_paths.append(out_path)
+
+    # concatenate all results from seed contigs
+    self.logger.log('merging all outputs')
+    mergedout_path = os.path.join(asmrootdir_path, 'local-asm-merged.fa')
+    util.concat_files(out_paths, mergedout_path)
+    shutil.copy(mergedout_path, self.options.get_bin_dir(self.binid, final=True))
+    self.logger.log('done')
+
+  def do_local_assembly(self, root_ctg, asmrootdir_path):
+
+    self.logger.log('assembling barcoded reads for seed {}'.format(root_ctg))
+
+    ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
 
     def get_barcode(read):
       filt_list = filter(lambda(k, v): k == 'BX', read.tags)
@@ -89,13 +117,13 @@ class AssembleMetaBinnedStep(StepChunk):
       if bcode != None:
         bcodes.add(bcode)
     fhandle.close()
-    size = ctg_size_map[ctg]
+    size = ctg_size_map[root_ctg]
     cov = 95. * numreads / size
     if cov < 10. or len(bcodes) < 30.:
-      self.logger.log('seed contig does not have high enough coverage')
+      self.logger.log('seed {} contig does not have high enough coverage'.format(root_ctg))
       self.logger.log('  - {} bcodes, {}x'.format(len(bcodes), cov))
-      util.touch(self.outpaths()['local-asm-merged.fa'])
-      self.logger.log('done')
+      out_path = os.path.join(asmrootdir_path, 'local-asm-merged.fa')
+      util.touch(out_path)
       return
 
     # create a local assembler for this root contig
@@ -152,22 +180,15 @@ class AssembleMetaBinnedStep(StepChunk):
             break
           total_asm_contigs += 1
           total_asm_bp += len(seq)
-          fout.write('>{}.{}${}.{}\n'.format(local_asm.root_ctg, local_asm.link_ctg, contig, i))
+          link_name = local_asm.link_ctg
+          if link_name == None:
+            link_name = 'seed'
+          fout.write('>{}.{}${}.{}\n'.format(local_asm.root_ctg, link_name, contig, i))
           fout.write(str(seq) + '\n')
 
     self.logger.log('  - {} contigs covering {} bases'.format(
       total_asm_contigs,
       total_asm_bp))
+    pass_path = os.path.join(asmrootdir_path, 'pass')
+    util.touch(pass_path)
       
-    def copyfinal(src, dest):
-      shutil.copyfile(
-        os.path.join(self.options.get_bin_asm_dir(self.binid), src),
-        os.path.join(self.options.get_bin_dir(self.binid, final=True), dest),
-      )
-
-    self.logger.log('copying deliverables to final')
-    copyfinal('local-asm-merged.fa', 'local-asm-merged.fa')
-    #copyfinal('local-asm.p', 'local-asm.p')
-
-    self.logger.log('done')
-

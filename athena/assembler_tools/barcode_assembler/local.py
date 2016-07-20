@@ -180,12 +180,14 @@ class LocalAssembler(object):
           continue
         bcodes.add(bcode)
         bcode_counts[bcode] += 1
-        p_ctg = fhandle.getrname(read.next_reference_id)    
-        if p_ctg != ctg:
-          link_ctg_counts[p_ctg] += 1
-          link_ctg_qnames[p_ctg].add(read.qname)
-          link_regions_map[p_ctg].insert(read.pos, read.aend, i)
-          link_reads_map[i] = read
+        tid = read.next_reference_id
+        if tid != -1:
+          p_ctg = fhandle.getrname(read.next_reference_id)    
+          if p_ctg != ctg:
+            link_ctg_counts[p_ctg] += 1
+            link_ctg_qnames[p_ctg].add(read.qname)
+            link_regions_map[p_ctg].insert(read.pos, read.aend, i)
+            link_reads_map[i] = read
   
         # update coverage profile
         bin_idx = read.pos / COV_BIN_SIZE
@@ -370,7 +372,7 @@ class LocalAssembler(object):
         LocalAssembly(
           id_gen.get_next(),
           self.root_ctg,
-          end_pos,
+          None,
           None,
           None,
           root_bcode_set,
@@ -387,12 +389,15 @@ def get_lrhints_fa(
 ):
   with open(outfa_path, 'w') as fout:
     ctg_fasta = pysam.FastaFile(infa_path)
-    for ctg, (pos, is_reverse) in ctgs:
+    for ctg, pos_pre in ctgs:
       seq = str(ctg_fasta.fetch(ctg).upper())
-      if is_reverse:
-        seq_sub = seq[pos+200:]
-      else:
-        seq_sub = seq[:max(0, pos-200)]
+      seq_sub = seq
+      if pos_pre != None:
+        pos, is_reverse = pos_pre
+        if is_reverse:
+          seq_sub = seq[pos+200:]
+        else:
+          seq_sub = seq[:max(0, pos-200)]
       # skip empty or uninformative long reads
       if len(seq_sub) < 200:
         continue

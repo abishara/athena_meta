@@ -107,10 +107,10 @@ def get_genome_partitions(
 #--------------------------------------------------------------------------
 # fastq
 #--------------------------------------------------------------------------
-def grouped(iterator, lines_per_read, slop=False):
+def grouped(iterator, n, slop=False):
   iterator = iter(iterator)
   while True:
-    vals = tuple(next(iterator, None) for _ in xrange(lines_per_read))
+    vals = tuple(next(iterator, None) for _ in xrange(n))
     if None not in vals:
       yield vals
     else:
@@ -155,6 +155,7 @@ TenXFastqEntry_t = namedtuple(
     'qual2',
     'bcode',
     'bcodequal',
+    'bcoderaw',
     'txt',
   ]
 )
@@ -177,7 +178,10 @@ def tenx_fastq_iter(fq, fmt='raw'):
 
 def f_iter_tenx(f, fmt='raw'):
   for fields in grouped(f, 9):
-    bcode = fields[5].strip()
+    bcode_raw = fields[5].strip()
+    bcode = bcode_raw
+    if ',' in bcode_raw:
+      bcode, bcode_raw = bcode_raw.split(',')
     if fmt == 'entries':
       rtxt = ''.join(fields)
       yield TenXFastqEntry_t(
@@ -186,8 +190,9 @@ def f_iter_tenx(f, fmt='raw'):
         qual1=fields[2].strip(),
         seq2=fields[3].strip(),
         qual2=fields[4].strip(),
-        bcode=fields[5].strip(),
+        bcode=bcode,
         bcodequal=fields[6].strip(),
+        bcoderaw=bcode_raw,
         txt=rtxt,
       )
     elif fmt == 'raw':

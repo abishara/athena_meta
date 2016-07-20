@@ -48,15 +48,13 @@ class AssembleOLCStep(StepChunk):
 
     # load all the bins
     bins = util.load_pickle(self.options.bins_pickle_path)
-    # skip union bin
-    bins = bins[:-1]
 
     #input_paths = [self.options.ctgfasta_path]
     input_paths = []
     seed_ctgs = set()
-    for (binid, _) in  bins:
-      seed_ctg = binid[4:]
-      seed_ctgs.add(seed_ctg)
+    for (binid, seed_group) in bins:
+      for ctg in seed_group:
+        seed_ctgs.add(ctg)
       bindir_path = self.options.get_bin_dir(binid, final=True)
       fa_path = os.path.join(bindir_path, 'local-asm-merged.fa')
       if not os.path.isfile(fa_path):
@@ -73,7 +71,7 @@ class AssembleOLCStep(StepChunk):
         fout.write(str(seq) + '\n')
     input_paths.append(seedsfa_path)
 
-    util.concat_files(input_paths, mergedfa_path)
+    #util.concat_files(input_paths, mergedfa_path)
     #die
 
     #self.logger.log('  {} contigs, covering {} bases'.format(
@@ -84,7 +82,17 @@ class AssembleOLCStep(StepChunk):
       canu0_path = 'canu-asm-0'
       mergedfa_path = 'canu-input-contigs.fa'
 
-      cmd = '{} useGrid=0 errorRate=0.07 genomeSize=5.00m stopOnReadQuality=false -d {} -p canu -pacbio-corrected {}'.format(
+      cmd = \
+'{} \
+useGrid=1  \
+gridOptions="-p owners" \
+errorRate=0.07  \
+genomeSize=45.00m  \
+contigFilter="2 2000 1.0 1.0 2" \
+stopOnReadQuality=false  \
+-d {}  \
+-p canu  \
+-pacbio-corrected {}'.format(
         canubin_path,
         canu0_path,
         mergedfa_path

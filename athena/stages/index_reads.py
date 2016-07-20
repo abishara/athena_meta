@@ -23,7 +23,7 @@ class IndexReadsStep(StepChunk):
   def outpaths(self, final=False):
     paths = {}
     paths['pass.file'] = os.path.join(self.outdir, 'pass')
-    paths['index.file'] = FastqIndex.get_index_path(self.fq_path)
+    paths['index.file'] = FastqIndex.get_index_path(self.nfq_path)
     #paths['shit.file'] = os.path.join(self.outdir, 'shit')
     return paths
  
@@ -42,6 +42,7 @@ class IndexReadsStep(StepChunk):
   ):
     self.options = options
     self.fq_path = fq_path
+    self.nfq_path = fq_path[:-3]
     util.mkdir_p(self.outdir)
 
   def __fqid(self):
@@ -55,12 +56,11 @@ class IndexReadsStep(StepChunk):
 
   def run(self):
     self.logger.log('uncompressing fastq')
-    nfq_path = self.fq_path[:-3]
-    cmd = 'zcat {} > {}'.format(self.fq_path, nfq_path)
+    cmd = 'zcat {} > {}'.format(self.fq_path, self.nfq_path)
     os.system(cmd)
 
-    self.logger.log('index fastq {}'.format(nfq_path))
-    with FastqIndex(nfq_path) as idx:
+    self.logger.log('index fastq {}'.format(self.nfq_path))
+    with FastqIndex(self.nfq_path) as idx:
       pass
     passfile_path = os.path.join(self.outdir, 'pass')
     util.touch(passfile_path)

@@ -6,7 +6,7 @@ from collections import defaultdict, Counter
 import numpy as np
 import networkx as nx
 from itertools import groupby, combinations
-import community
+import random
 
 from .step import StepChunk
 from ..mlib import util
@@ -37,7 +37,6 @@ class BinMetaReadsStep(StepChunk):
   def outpaths(self, final=False):
     paths = {}
     paths['bins.p'] = self.options.bins_pickle_path
-    paths['bins2.p'] = self.options.bins2_pickle_path
     #paths['shit.p'] = 'shit'
     return paths
 
@@ -105,18 +104,25 @@ class BinMetaReadsStep(StepChunk):
     #die
 
     self.logger.log('  {} idba0 contigs mapping to seeds'.format(len(filtqname_set)))
-
-    filtqname_set = set(filter(
+    seeds = filter(
       lambda(qname): ctg_size_map[qname] >= MIN_SEED_SIZE,
       filtqname_set,
-    ))
+    )
     self.logger.log('  {} idba0 contigs mapping to seeds  >= {}bp'.format(
-      len(filtqname_set),
+      len(seeds),
       MIN_SEED_SIZE,
     ))
 
-    # create a bin for all seeds of sufficient size
-    bins = list(filtqname_set)
+    # strip seed contigs into bins such that no more than 4000 bins
+    random.shuffle(seeds)
+    bins = []
+    #group_size = 2
+    group_size = max(1, len(seeds) / 4000)
+    for i, seed_group in \
+      enumerate(util.grouped(seeds, group_size, slop=True)):
+      binid = 'bin.{}'.format(i)
+      bins.append((binid, seed_group))
+
     self.logger.log('created {} bins from seeds'.format(len(bins)))
     util.write_pickle(self.options.bins_pickle_path, bins)
 
