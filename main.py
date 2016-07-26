@@ -6,13 +6,14 @@ import logging
 from athena.mlib import util
 
 from athena import pipeline
-from athena.options import MetaAsmOptions
+from athena.options import MetaAsmOptions, MetaHapOptions
 
-from athena.stages import haplotype_reads
 from athena.stages import index_reads
 from athena.stages import bin_meta_reads
 from athena.stages import assemble_meta_bins
 from athena.stages import assemble_olc
+
+from athena.stages import haplotype_reads
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
@@ -48,8 +49,11 @@ def get_stages(options):
     if options.pipe_type == 'meta-asm':
       stages["bin_reads"] = bin_meta_reads.BinMetaReadsStep
       stages["index_reads"] = index_reads.IndexReadsStep
-      stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
+      #stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
       stages["assemble_olc"] = assemble_olc.AssembleOLCStep
+    elif options.pipe_type == 'meta-hap':
+      stages["call_variants"] = haplotype_reads.CallVariantsStep
+      stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
     else:
       raise Exception("Pipeline not implemented yet")
 
@@ -77,7 +81,7 @@ def main(argv):
   help_str = '''
   usage: athena_meta.py <path/to/config.json> [pipeline]
 
-  pipeline: {meta-asm}, default: meta-asm
+  pipeline: {meta-asm, meta-hap}, default: meta-asm
 
   NOTE: dirname(config.json) specifies root output directory
   '''
@@ -91,6 +95,7 @@ def main(argv):
     pipe_type = argv[2]
     if pipe_type not in [
       'meta-asm',
+      'meta-hap',
     ]:
       print >> sys.stderr, 'error: incorrect pipeline specified'
       sys.exit(2)
@@ -98,6 +103,7 @@ def main(argv):
   # load config json
   options_cls = {
     'meta-asm': MetaAsmOptions,
+    'meta-hap': MetaHapOptions,
   }[pipe_type]
   options = options_cls.deserialize(config_path)
 

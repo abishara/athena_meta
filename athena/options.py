@@ -183,3 +183,46 @@ class MetaAsmOptions(Options):
         state = self.__dict__.copy()
         return state
 
+#--------------------------------------------------------------------------
+# metagenome haplotype options
+#--------------------------------------------------------------------------
+class MetaHapOptions(Options):
+
+    @classproperty
+    def pipe_type(self): return 'meta-hap'
+
+    @classproperty
+    def required(self):
+      return [
+        'ctgfasta_path',
+        'reads_ctg_bam_path',
+      ]
+
+    @classproperty
+    def optional(self):
+      return []
+
+    def __init__(self, options_path, debug=False):
+        super(MetaHapOptions, self).__init__(options_path)
+
+    @property
+    def bins_pickle_path(self): 
+        return os.path.join(self.working_dir, 'bins.p')
+
+    def get_bin_dir(self, binid, final=False):
+      assert binid.startswith('bin')
+      return os.path.join(
+        self.working_dir if not final else self.results_dir,
+        binid,
+      )
+      
+    def __str__(self):
+        return self.__class__.__name__
+
+    def __getstate__(self):
+        """
+        allows pickling of Options instances, necessary for ipyparallel
+        """
+        state = self.__dict__.copy()
+        return state
+

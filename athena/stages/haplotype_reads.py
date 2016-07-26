@@ -14,24 +14,65 @@ haplotyperbin_path = os.path.join(
 )
 assert os.path.isfile(haplotyperbin_path)
 
-class HaplotypeReadsStep(StepChunk):
+MIN_CONTIG_SIZE = 20000
 
-  @staticmethod
-  def get_steps(options):
-    for ctg, b, e in util.get_genome_partitions(
-      options.ref_fasta,
-      options.genome_window_size,
-      options.genome_step_size,
-    ):
-      if not options.regions or len(options.regions[ctg].find(b,e)) > 0:
-        yield HaplotypeReadsStep(options, ctg, b, e)
-        #break
+#--------------------------------------------------------------------------
+# base class
+#--------------------------------------------------------------------------
+class BaseStep(StepChunk):
 
-  def outpaths(self, final=False):
-    paths = {}
-    paths['stats'] = os.path.join(self.outdir, 'stats.p')
-    return paths
- 
+  @classmethod
+  def get_steps(cls, options):
+
+    ctg_size_map = util.get_fasta_sizes(options.ctgfasta_path)
+    if os.path.isfile(options.bins_pickle_path):
+      bins = util.load_pickle(options.bins_pickle_path)
+    else:
+      print 'creating haplotyping bins'
+      fasta = pysam.FastaFile(options.ctgfasta_path)
+      total_bases = sum(ctg_size_map.values())
+      bases_per_group = total_bases / 4000
+      assert bases_per_group > 1000
+
+      group = []
+      group_bases = 0
+      bins = []
+      id_gen = util.IdGenerator()
+      #for ctg in sorted(
+      #  fasta.references,
+      #  key=lambda(c): fasta.get_reference_length(c),
+      #  reverse=True,
+      #):
+      for ctg in fasta.references:
+        size = ctg_size_map[ctg]
+        if size < MIN_CONTIG_SIZE:
+          continue
+        group_bases += size
+        group.append(ctg)
+        if group_bases > bases_per_group:
+          binid = 'bin.{}'.format(id_gen.get_next())
+          bins.append((binid, group))
+          group_bases = 0
+          group = []
+      # tail group
+      if group != []:
+        binid = 'bin.{}'.format(id_gen.get_next())
+        bins.append((binid, group))
+
+      print '  - saving {}'.format(options.bins_pickle_path)
+      util.write_pickle(options.bins_pickle_path, bins)
+
+    total_ctgs = 0
+    total_bases = 0
+    for binid, group in bins:
+      total_bases += sum(map(lambda(c): ctg_size_map[c], group))
+      total_ctgs += len(group)
+      yield cls(options, binid, group)
+
+    print 'grouped {} total_ctgs covering {} bases'.format(
+      total_ctgs,
+      total_bases)
+
   @property
   def outdir(self):
     return os.path.join(
@@ -39,36 +80,139 @@ class HaplotypeReadsStep(StepChunk):
       self.__class__.__name__,
       str(self),
     )
+ 
+  def __str__(self):
+    return '{}_{}'.format(
+      self.__class__.__name__,
+      self.binid,
+    )
 
   def __init__(
     self,
     options,
-    ctg,
-    begin,
-    end,
+    binid,
+    ctgs,
   ):
     self.options = options
-    self.ctg = ctg
-    self.begin = begin
-    self.end = end
+    self.ctgs = ctgs
+    self.binid = binid
     util.mkdir_p(self.outdir)
+    util.mkdir_p(self.options.get_bin_dir(self.binid))
 
-  def __str__(self):
-    return '{}_{}.{}-{}'.format(
-      self.__class__.__name__,
-      self.ctg,
-      self.begin,
-      self.end,
-    )
+#--------------------------------------------------------------------------
+# call variants
+#--------------------------------------------------------------------------
+# FIXME hardcoded path
+freebayesbin_path = '/home/abishara/sources/freebayes/bin/freebayes'
+
+class CallVariantsStep(BaseStep):
+
+  def outpaths(self, final=False):
+    paths = {}
+    paths['vcf'] = os.path.join(self.outdir, 'vars.vcf.gz')
+    paths['vcf_index'] = os.path.join(self.outdir, 'vars.vcf.gz.tbi')
+    return paths
 
   def run(self):
-    self.logger.log('clustering reads')
-    roi_str = '{}:{}-{}'.format(self.ctg, self.begin, self.end)
-    haplotyper.cluster_reads(
-      self.options.longranger_bam_path,
-      self.options.longranger_vcf_path,
-      roi_str,
-      self.outdir,
-    )
+    self.logger.log('creating regions bed file')
+    ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
+    bindir_path = self.options.get_bin_dir(self.binid)
+    bed_path = os.path.join(bindir_path, 'roi.bed')
+    with open(bed_path, 'w') as fout:
+      for ctg in self.ctgs:
+        fout.write('{}\t{}\t{}\n'.format(ctg, 0, ctg_size_map[ctg]))
+      
+    self.logger.log('freebayes for contigs in this group')
+    vcf_path = os.path.join(bindir_path, 'vars.filt.vcf')
+    with open(vcf_path, 'w') as fout:
+      #-Y 100 -C 4 -F 0.1 
+      subprocess.check_call([
+        freebayesbin_path,
+        '-f', self.options.ctgfasta_path,
+        '-b', self.options.reads_ctg_bam_path,
+        '-0',
+        #'-Y', '120', '-C', '4', '-F', '0.1', '-q', '20',
+        '-t', bed_path], stdout=fout)
+
+    self.logger.log('bgzip and tabix index')
+    vcfgz_path = os.path.join(self.outdir, 'vars.vcf.gz')
+    cmd = 'bgzip -c {} > {}'.format(vcf_path, vcfgz_path)
+    subprocess.check_call(cmd, shell=True)
+    cmd = 'tabix -p vcf {}'.format(vcfgz_path)
+    subprocess.check_call(cmd, shell=True)
+
     self.logger.log('done')
+
+
+#--------------------------------------------------------------------------
+# haplotype reads
+#--------------------------------------------------------------------------
+class HaplotypeReadsStep(BaseStep):
+
+  def outpaths(self, final=False):
+    paths = {}
+    paths['stats'] = os.path.join(self.outdir, 'stats.p')
+    paths['strains'] = os.path.join(self.outdir, 'strains.vcf')
+    return paths
+
+  def run(self):
+    var_step = CallVariantsStep(self.options, self.binid, self.ctgs)
+    invcf_path = var_step.outpaths()['vcf']
+    self.logger.log('haplotyping contigs in group')
+
+    stats_paths = []
+    hapvcf_paths = []
+    ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
+    for ctg in self.ctgs:
+      self.logger.log('  - {}'.format(ctg))
+
+      ## FIXME remove
+      #roi_str = '{}:{}-{}'.format(ctg, 0, 1000)
+      roi_str = '{}:{}-{}'.format(ctg, 0, ctg_size_map[ctg])
+      outdir = os.path.join(self.outdir, ctg)
+      haplotyper.cluster_reads(
+        self.options.reads_ctg_bam_path,
+        invcf_path,
+        roi_str,
+        outdir,
+      )
+      stats_path = os.path.join(outdir, 'stats.p')
+      hapvcf_path = os.path.join(outdir, 'clusters.vcf')
+      stats_paths.append((ctg, stats_path))
+      hapvcf_paths.append((ctg, hapvcf_path))
+
+    self.logger.log('merging outputs from all contigs in groups')
+    strains_vcf_path = os.path.join(self.outdir, 'strains.vcf')
+    with open(strains_vcf_path, 'w') as fout:
+      header = False
+      for _, vcf_path in hapvcf_paths:
+        with open(vcf_path) as fin:
+          for line in fin:
+            if line.startswith('#'):
+              if not header:
+                fout.write(line)
+              continue
+            fout.write(line)
+        header = True
+    
+    mstats = [] 
+    merged_stats_path = os.path.join(self.outdir, 'stats.p')
+    for ctg, stats_path in stats_paths:
+      stats = util.load_pickle(stats_path)
+      mstats.append((ctg, stats))
+    util.write_pickle(merged_stats_path, mstats)
+
+    self.logger.log('done')
+
+#--------------------------------------------------------------------------
+# helpers
+#--------------------------------------------------------------------------
+def get_vcf_path(vcf_path, ctg):
+  vcf_fhandle = vcf.Reader(filename=vcf_path)
+  try:
+    vcf_iter = vcf_fhandle.fetch(ctg)
+  except Exception as e:
+    print 'exception parsing vcf', str(e)
+    return []
+  return vcf_iter
 

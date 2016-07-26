@@ -63,14 +63,15 @@ class AssembleOLCStep(StepChunk):
         input_paths.append(fa_path)
 
     # append input hmp seed contigs
-    with open(seedsfa_path, 'w') as fout:
-      fasta = pysam.FastaFile(self.options.ctgfasta_path)
-      for ctg in seed_ctgs:  
-        seq = str(fasta.fetch(ctg).upper())
-        fout.write('>{}\n'.format(ctg))
-        fout.write(str(seq) + '\n')
-    input_paths.append(seedsfa_path)
+    #with open(seedsfa_path, 'w') as fout:
+    #  fasta = pysam.FastaFile(self.options.ctgfasta_path)
+    #  for ctg in seed_ctgs:  
+    #    seq = str(fasta.fetch(ctg).upper())
+    #    fout.write('>{}\n'.format(ctg))
+    #    fout.write(str(seq) + '\n')
+    #input_paths.append(seedsfa_path)
 
+    # FIXME uncomment
     #util.concat_files(input_paths, mergedfa_path)
     #die
 
@@ -78,11 +79,9 @@ class AssembleOLCStep(StepChunk):
     #  total_asm_contigs,
     #  total_asm_bp,
     #))
-    with util.cd(self.outdir):
-      canu0_path = 'canu-asm-0'
-      mergedfa_path = 'canu-input-contigs.fa'
 
-      cmd = \
+    canu0_path = os.path.join(self.outdir, 'canu-asm-0')
+    cmd = \
 '{} \
 useGrid=1  \
 gridOptions="-p owners" \
@@ -93,16 +92,108 @@ stopOnReadQuality=false  \
 -d {}  \
 -p canu  \
 -pacbio-corrected {}'.format(
-        canubin_path,
-        canu0_path,
-        mergedfa_path
-      )
-      print 'cmd', cmd
-      subprocess.check_call(cmd, shell=True)
+      canubin_path,
+      canu0_path,
+      mergedfa_path
+    )
+    #print 'cmd', cmd
+    #subprocess.check_call(cmd, shell=True)
+
+    # index assembled contigs 
+    self.logger.log('index canu assembled contigs')
+    with util.cd(canu0_path):
+      pass
+      #cmd = 'bwa index canu.contigs.fasta'
+      #subprocess.check_call(cmd, shell=True)
+
+    # align idba0 contigs to canu contigs
+    canu_contigs_path = os.path.join(canu0_path, 'canu.contigs.fasta')
+
+    # align reads to contigs
+    self.logger.log('aligning reads to contigs')
+    idba0fa_path = self.options.ctgfasta_path
+    outsam_path = os.path.join(self.outdir, 'align.on-contig.sam')
+    cmd = 'bwa mem {} {} > {}'.format(
+      canu_contigs_path,
+      idba0fa_path,
+      outsam_path,
+    )
+    #print 'cmd', cmd
+    #subprocess.check_call(cmd, shell=True)
+    #with util.cd(self.outdir):
+    #  print 'cmd', cmd
+    #  cmd = 'cat align.on-contig.sam | samtools view -bS - | samtools sort - align.on-contig'
+    #  subprocess.check_call(cmd, shell=True)
+    #  print 'cmd', cmd
+    #  cmd = 'samtools index align.on-contig.bam'
+    #  subprocess.check_call(cmd, shell=True)
+
+    seeds = set() 
+    bins = util.load_pickle(self.options.bins_pickle_path)
+    for _, _seeds in bins:
+      seeds |= set(_seeds)
+
+    idba_fasta = pysam.FastaFile(idba0fa_path)
+    self.logger.log('determine unmapped contigs out of {} idba0 contigs'.format(
+      idba_fasta.nreferences))
+
+    unmap_idba0_ctgs = get_unmapped_ctgs(
+      idba0fa_path,
+      os.path.join(self.outdir, 'align.on-contig.bam'))
+    self.logger.log('  - {} unmapped'.format(len(unmap_idba0_ctgs)))
+    self.logger.log('  - {}/{} seeds unmapped'.format(
+      len(unmap_idba0_ctgs & seeds),
+      len(seeds),
+    ))
+
+    idba0_unmapfa_path = os.path.join(self.outdir, 'idba0.unmap.fa')
+    idba0_unmapseedsfa_path = os.path.join(self.outdir, 'idba0.unmap.seeds.fa')
+
+
+    with open(idba0_unmapfa_path, 'w') as fout1, \
+         open(idba0_unmapseedsfa_path, 'w') as fout2:
+      for ctg in unmap_idba0_ctgs:
+        seq = str(idba_fasta.fetch(ctg).upper())
+        fout1.write('>{}\n'.format(ctg))
+        fout1.write('{}\n'.format(seq))
+        if ctg in seeds:
+          fout2.write('>{}\n'.format(ctg))
+          fout2.write('{}\n'.format(seq))
+
+    idba0_seedsfa_path = os.path.join(self.outdir, 'idba.seeds.fa')
+    with open(idba0_seedsfa_path, 'w') as fout:
+      for ctg in seeds:
+        seq = str(idba_fasta.fetch(ctg).upper())
+        fout.write('>{}\n'.format(ctg))
+        fout.write('{}\n'.format(seq))
+
+    final_fa_path = os.path.join(self.outdir, 'final.asm.fa')
+    final_fa2_path = os.path.join(self.outdir, 'final.asm2.fa')
+    util.concat_files(
+      [idba0_unmapfa_path, canu_contigs_path],
+      final_fa_path,
+    )
+    util.concat_files(
+      [idba0_unmapseedsfa_path, canu_contigs_path],
+      final_fa2_path,
+    )
 
     self.logger.log('done')
 
 #--------------------------------------------------------------------------
 # helpers
 #--------------------------------------------------------------------------
+def get_unmapped_ctgs(fa_path, bam_path):
+
+  ctg_size_map = util.get_fasta_sizes(fa_path)
+  fhandle = pysam.Samfile(bam_path, 'rb')
+  umap_ctgs = set()
+  for read in fhandle:
+    if (
+      read.is_unmapped or
+      read.query_alignment_length < 0.8 * ctg_size_map[read.qname]
+    ):
+      umap_ctgs.add(read.qname)
+  fhandle.close()
+  return umap_ctgs
 
