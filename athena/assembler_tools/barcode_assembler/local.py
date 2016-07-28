@@ -5,7 +5,7 @@ from collections import defaultdict, Counter
 import glob
 import random
 import numpy as np
-from bx.intervals.cluster import ClusterTree
+from bx.intervals.intersection import IntervalTree
 
 from athena.mlib import util
 from athena.mlib.fq_idx import FastqIndex
@@ -64,6 +64,8 @@ class LocalAssembler(object):
     self.fqdir_path = os.path.join(self.asmrootdir_path, 'fqs')
     util.mkdir_p(self.asmrootdir_path)
     util.mkdir_p(self.fqdir_path)
+    self.debugdir_path = os.path.join(self.asmrootdir_path, 'debug')
+    util.mkdir_p(self.debugdir_path)
 
     self.ctg_size_map = util.get_fasta_sizes(self.ctgfasta_path)
  
@@ -159,9 +161,8 @@ class LocalAssembler(object):
       bcodes = set()
       bcode_counts = Counter()
       link_ctg_counts = Counter()
-      link_ctg_qnames = defaultdict(set)
-      link_regions_map = defaultdict(lambda: ClusterTree(200, 1))
-      link_reads_map = {}
+      link_regions_map = defaultdict(lambda: IntervalTree(1, 1))
+      link_reads_map = defaultdict(list)
       link_ctg_pos = {}
       cov_bin_counts = Counter()
       if begin == None or end == None:
@@ -169,6 +170,7 @@ class LocalAssembler(object):
       else:
         assert None not in [begin, end]
         reads_iter = fhandle.fetch(ctg, begin, end)
+      seen_set = set()
       for i, read in enumerate(reads_iter):
         if read.is_unmapped:
           continue
@@ -178,16 +180,21 @@ class LocalAssembler(object):
         bcode = get_barcode(read)
         if bcode == None:
           continue
+        optid = (read.pos, read.aend, bcode)
+        # skip optical barcode duplicates
+        if optid in seen_set:
+          continue
+        seen_set.add(optid)
         bcodes.add(bcode)
         bcode_counts[bcode] += 1
         tid = read.next_reference_id
         if tid != -1:
           p_ctg = fhandle.getrname(read.next_reference_id)    
-          if p_ctg != ctg:
+          # save only links involving the root
+          if p_ctg != ctg and self.root_ctg in [p_ctg, ctg]:
             link_ctg_counts[p_ctg] += 1
-            link_ctg_qnames[p_ctg].add(read.qname)
-            link_regions_map[p_ctg].insert(read.pos, read.aend, i)
-            link_reads_map[i] = read
+            link_regions_map[p_ctg].insert(read.pos, read.aend, read)
+            link_reads_map[p_ctg].append(read)
   
         # update coverage profile
         bin_idx = read.pos / COV_BIN_SIZE
@@ -196,13 +203,17 @@ class LocalAssembler(object):
       # filter for only links in which the paired end reads are clustered
       # near each other
       for p_ctg, regions in link_regions_map.items():
-        regions = link_regions_map[p_ctg]
-        (b, e, link_idxs) = max(regions.getregions(), key=lambda(x): len(x[2]))
-        if len(link_idxs) < 3:
+        all_link_reads = link_reads_map[p_ctg]
+        # find maximal link
+        link_sets = map(
+          lambda(r): regions.find(r.pos - 200, r.aend + 200),
+          all_link_reads,
+        )
+        link_reads = max(link_sets, key=len)
+        is_cand_chimera = len(all_link_reads) > 2 * len(link_reads)
+        if len(link_reads) < 3 or is_cand_chimera:
           del link_ctg_counts[p_ctg]
-          del link_ctg_qnames[p_ctg]
         else:
-          link_reads = map(lambda(i): link_reads_map[i], link_idxs)
           is_reverse = get_mode(map(lambda(r): r.is_reverse, link_reads))
           if is_reverse:
             pos = int(np.median(map(lambda(r): r.pos, link_reads)))
@@ -214,7 +225,6 @@ class LocalAssembler(object):
         bcodes,
         bcode_counts,
         link_ctg_counts,
-        link_ctg_qnames,
         link_ctg_pos,
         cov_bin_counts,
       )
@@ -231,17 +241,17 @@ class LocalAssembler(object):
       root_bcode_set, 
       root_bcode_counts, 
       link_ctg_counts,
-      link_ctg_qnames,
       root_link_ctg_pos,
       cov_bin_counts,
     ) = get_ctg_links(self.root_ctg)
   
     # don't locally assemble any small contigs with out of whack coverage
     if self.ctg_size_map[self.root_ctg] < SMALL_CTG_SIZE and is_whack_coverage(cov_bin_counts):
-      max_cov = max(cov_bin_counts.values())
-      med_cov = np.median(cov_bin_counts.values())
+      root_max_cov = max(cov_bin_counts.values())
+      root_med_cov = np.median(cov_bin_counts.values())
+      self.logger.log('root-ctg:{};filt-cov:True'.format(self.root_ctg))
       self.logger.log('max coverage {} order of magnitude higher than median {}'.format(
-        max_cov, med_cov))
+        root_max_cov, root_med_cov))
       return []
   
     link_cand_ctgs = filter(
@@ -249,7 +259,16 @@ class LocalAssembler(object):
       link_ctg_counts,
     )
 
-    self.logger.log('{} initial link candidates to examine'.format(
+    # truncate for a max of 200 checks
+    num_orig_checks = len(link_cand_ctgs)
+    truncate_checks = (num_orig_checks > 200)
+    link_cand_ctgs = sorted(
+      link_cand_ctgs,
+      key=lambda(c): link_ctg_counts[c],
+      reverse=True,
+    )[:200]
+
+    self.logger.log('{} initial link candidates to check'.format(
       len(link_cand_ctgs)))
     # examine recipricol links 
     link_ctgs = []
@@ -260,12 +279,10 @@ class LocalAssembler(object):
     # <ctg> : { <ctg> : pos }
     link_ctg_pos_map = {}
     for i, link_ctg in enumerate(link_cand_ctgs):
-      #print 'link_ctg', link_ctg
       (
         link_ctg_bcodes[link_ctg],
         link_ctg_bcode_counts[link_ctg],
         _link_ctg_counts,
-        _link_ctg_qnames,
         link_ctg_pos_map[link_ctg],
         _cov_bin_counts,
       ) = get_ctg_links(link_ctg)
@@ -329,6 +346,44 @@ class LocalAssembler(object):
       else:
         return set(bcodes)
   
+    # truncate for a max of 50 local assemblies
+    num_orig_asms = len(local_asms)
+    truncate_asms = (num_orig_asms > 50)
+    local_asms = sorted(
+      local_asms,
+      key=lambda(l): link_ctg_counts[l.link_ctg],
+      reverse=True,
+    )[:50]
+
+    ## dump debug of local assemblies
+    #debug_path = os.path.join(self.debugdir_path, 'debug-links.bam')
+    #self.logger.log('dumping debug bam')
+    #debug_fhandle = pysam.Samfile(debug_path, 'wb', template=fhandle)
+    #debug_ctgs = [self.root_ctg]
+    #debug_ctgs.extend(map(
+    #  lambda(l): l.link_ctg,
+    #  sorted(
+    #    local_asms,
+    #    key=lambda(l): len(l.bcode_set),
+    #    reverse=True,
+    #  )[:30],
+    #))
+    #debug_ctg_set = set(debug_ctgs)
+    #for ctg in debug_ctgs:
+    #  for read in fhandle.fetch(ctg):
+    #    tid  = read.reference_id
+    #    ntid = read.next_reference_id
+    #    is_link = (-1 not in [tid, ntid] and tid != ntid)
+    #    if is_link:
+    #      _ctg = fhandle.getrname(tid)
+    #      _nctg = fhandle.getrname(ntid)
+    #      if (
+    #        set([_ctg, _nctg]).issubset(debug_ctg_set) and
+    #        self.root_ctg in [_ctg, _nctg]
+    #      ):
+    #        debug_fhandle.write(read)
+    #debug_fhandle.close()
+         
     # do local reassembly of the root contig
 
     # if the contig is >20kb, create a local assembly at each end of the
@@ -338,7 +393,7 @@ class LocalAssembler(object):
       self.logger.log('large root contig of size {}'.format(root_size))
       self.logger.log('  - generate head+tail local assemblies')
       # head
-      (head_bcode_set, _, _, _, _, _,) = \
+      (head_bcode_set, _, _, _, _,) = \
         get_ctg_links(self.root_ctg, 0, SEED_SELF_ASM_SIZE)
       begin_pos = (0, True)
       local_asms.append(
@@ -353,7 +408,7 @@ class LocalAssembler(object):
         )
       )
       # tail
-      (tail_bcode_set, _, _, _, _, _,) = \
+      (tail_bcode_set, _, _, _, _,) = \
         get_ctg_links(self.root_ctg, root_size - SEED_SELF_ASM_SIZE, root_size)
       end_pos = (self.ctg_size_map[self.root_ctg], False)
       local_asms.append(
@@ -380,6 +435,18 @@ class LocalAssembler(object):
         )
       )
   
+    fhandle.close()
+
+    # debug logging message
+    self.logger.log('root-ctg:{};numreads:{};checks:{};trunc-checks:{};asms:{};trunc-asms:{}'.format(
+      self.root_ctg,
+      sum(cov_bin_counts.values()),
+      num_orig_checks,
+      truncate_checks,
+      num_orig_asms,
+      truncate_asms,
+    ))
+
     return local_asms
   
 def get_lrhints_fa(

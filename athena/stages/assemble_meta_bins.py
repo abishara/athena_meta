@@ -2,14 +2,8 @@ import os
 import pysam
 import subprocess
 from collections import defaultdict, Counter
-import glob
 import shutil
-from itertools import izip
-import random
-import numpy as np
-from bx.intervals.cluster import ClusterTree
 
-from ..assembler_tools.architect import architect
 from ..assembler_tools.barcode_assembler.local import LocalAssembler
 
 from .step import StepChunk
@@ -26,10 +20,8 @@ class AssembleMetaBinnedStep(StepChunk):
     bins = util.load_pickle(options.bins_pickle_path)
     
     for i, (binid, seeds) in enumerate(bins):
-      #if 'contig-100_175334' not in seeds:
+      #if 'contig-100_34108' not in seeds:
       #  continue
-      #print 'binid', binid
-      #print 'seeds', seeds
       yield AssembleMetaBinnedStep(options, binid, seeds)
 
   def __init__(
