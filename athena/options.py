@@ -123,7 +123,6 @@ class MetaAsmOptions(Options):
     def required(self):
       return [
         'ctgfasta_path',
-        'bcode_ctg_hits_path',
         'reads_ctg_bam_path',
         'longranger_fqs_path',
       ]
@@ -137,17 +136,6 @@ class MetaAsmOptions(Options):
 
         self._bcode_idx_map = None
         self._ctg_idx_map = None
-
-    @property
-    def bcode_idx_map(self): 
-      if self._bcode_idx_map == None:
-        self._bcode_idx_map = util.load_pickle(self.bcode_ctg_hits_path + '_bcode-idx.p')
-      return self._bcode_idx_map
-    @property
-    def ctg_idx_map(self): 
-      if self._ctg_idx_map == None:
-        self._ctg_idx_map = util.load_pickle(self.bcode_ctg_hits_path + '_ctg-idx.p')
-      return self._ctg_idx_map
 
     @property
     def bins_pickle_path(self): 

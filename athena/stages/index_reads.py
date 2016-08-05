@@ -57,10 +57,50 @@ class IndexReadsStep(StepChunk):
   def run(self):
     self.logger.log('uncompressing fastq')
     cmd = 'zcat {} > {}'.format(self.fq_path, self.nfq_path)
-    os.system(cmd)
+    #os.system(cmd)
 
     self.logger.log('index fastq {}'.format(self.nfq_path))
     with FastqIndex(self.nfq_path) as idx:
+      pass
+    passfile_path = os.path.join(self.outdir, 'pass')
+    util.touch(passfile_path)
+    self.logger.log('done')
+
+class IndexBCBamStep(StepChunk):
+
+  @staticmethod
+  def get_steps(options):
+    yield IndexBCBamStep(options)
+
+  def outpaths(self, final=False):
+    paths = {}
+    paths['pass.file'] = os.path.join(self.outdir, 'pass')
+    paths['index.file'] = BCBamIndex.get_index_path(self.bam_path)
+    #paths['shit.file'] = os.path.join(self.outdir, 'shit')
+    return paths
+ 
+  @property
+  def outdir(self):
+    return os.path.join(
+      self.options.results_dir,
+      str(self),
+    )
+
+  def __init__(
+    self,
+    options,
+    fq_path,
+  ):
+    self.options = options
+    self.bam_path = bam_path
+    util.mkdir_p(self.outdir)
+
+  def __str__(self):
+    return '{}'.format(self.__class__.__name__)
+
+  def run(self):
+    self.logger.log('index barcode sorted bam {}'.format(self.bam_path))
+    with BCBamIndex(self.bam_path) as idx:
       pass
     passfile_path = os.path.join(self.outdir, 'pass')
     util.touch(passfile_path)

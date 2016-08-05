@@ -29,36 +29,9 @@ class BaseStep(StepChunk):
       bins = util.load_pickle(options.bins_pickle_path)
     else:
       print 'creating haplotyping bins'
-      fasta = pysam.FastaFile(options.ctgfasta_path)
-      total_bases = sum(ctg_size_map.values())
-      bases_per_group = total_bases / 4000
-      assert bases_per_group > 1000
-
-      group = []
-      group_bases = 0
-      bins = []
-      id_gen = util.IdGenerator()
-      #for ctg in sorted(
-      #  fasta.references,
-      #  key=lambda(c): fasta.get_reference_length(c),
-      #  reverse=True,
-      #):
-      for ctg in fasta.references:
-        size = ctg_size_map[ctg]
-        if size < MIN_CONTIG_SIZE:
-          continue
-        group_bases += size
-        group.append(ctg)
-        if group_bases > bases_per_group:
-          binid = 'bin.{}'.format(id_gen.get_next())
-          bins.append((binid, group))
-          group_bases = 0
-          group = []
-      # tail group
-      if group != []:
-        binid = 'bin.{}'.format(id_gen.get_next())
-        bins.append((binid, group))
-
+      bins = list(enumerate(
+        util.get_fasta_partitions(options.ctgfasta_path, 4000)
+      ))
       print '  - saving {}'.format(options.bins_pickle_path)
       util.write_pickle(options.bins_pickle_path, bins)
 

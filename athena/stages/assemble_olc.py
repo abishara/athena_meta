@@ -63,13 +63,13 @@ class AssembleOLCStep(StepChunk):
         input_paths.append(fa_path)
 
     # append input hmp seed contigs
-    #with open(seedsfa_path, 'w') as fout:
-    #  fasta = pysam.FastaFile(self.options.ctgfasta_path)
-    #  for ctg in seed_ctgs:  
-    #    seq = str(fasta.fetch(ctg).upper())
-    #    fout.write('>{}\n'.format(ctg))
-    #    fout.write(str(seq) + '\n')
-    #input_paths.append(seedsfa_path)
+    with open(seedsfa_path, 'w') as fout:
+      fasta = pysam.FastaFile(self.options.ctgfasta_path)
+      for ctg in seed_ctgs:  
+        seq = str(fasta.fetch(ctg).upper())
+        fout.write('>{}\n'.format(ctg))
+        fout.write(str(seq) + '\n')
+    input_paths.append(seedsfa_path)
 
     # FIXME uncomment
     #util.concat_files(input_paths, mergedfa_path)
@@ -98,13 +98,14 @@ stopOnReadQuality=false  \
     )
     #print 'cmd', cmd
     #subprocess.check_call(cmd, shell=True)
+    #die
 
     # index assembled contigs 
     self.logger.log('index canu assembled contigs')
     with util.cd(canu0_path):
-      pass
-      #cmd = 'bwa index canu.contigs.fasta'
-      #subprocess.check_call(cmd, shell=True)
+      #pass
+      cmd = 'bwa index canu.contigs.fasta'
+      subprocess.check_call(cmd, shell=True)
 
     # align idba0 contigs to canu contigs
     canu_contigs_path = os.path.join(canu0_path, 'canu.contigs.fasta')
@@ -118,15 +119,15 @@ stopOnReadQuality=false  \
       idba0fa_path,
       outsam_path,
     )
-    #print 'cmd', cmd
-    #subprocess.check_call(cmd, shell=True)
-    #with util.cd(self.outdir):
-    #  print 'cmd', cmd
-    #  cmd = 'cat align.on-contig.sam | samtools view -bS - | samtools sort - align.on-contig'
-    #  subprocess.check_call(cmd, shell=True)
-    #  print 'cmd', cmd
-    #  cmd = 'samtools index align.on-contig.bam'
-    #  subprocess.check_call(cmd, shell=True)
+    print 'cmd', cmd
+    subprocess.check_call(cmd, shell=True)
+    with util.cd(self.outdir):
+      print 'cmd', cmd
+      cmd = 'cat align.on-contig.sam | samtools view -bS - | samtools sort -o align.on-contig.bam -'
+      subprocess.check_call(cmd, shell=True)
+      print 'cmd', cmd
+      cmd = 'samtools index align.on-contig.bam'
+      subprocess.check_call(cmd, shell=True)
 
     seeds = set() 
     bins = util.load_pickle(self.options.bins_pickle_path)

@@ -40,11 +40,9 @@ class BinMetaReadsStep(StepChunk):
     #paths['shit.p'] = 'shit'
     return paths
 
-  def run(self):
-    self.logger.log('determine bins from seed contigs')
+  def get_refmapped_seeds(self):
+    self.logger.log('determine seeds from ref mappings')
 
-    ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
-    
     reffasta_path = '/scratch/PI/serafim/abishara/reference/hmp/all_seqs.fa'
     ctgref_bam_path = '/scratch/users/abishara/scratch/scratch.metagenome/align-contig-hmp.sorted.bam'
 
@@ -103,6 +101,7 @@ class BinMetaReadsStep(StepChunk):
     #)
     #die
 
+    ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
     self.logger.log('  {} idba0 contigs mapping to seeds'.format(len(filtqname_set)))
     seeds = filter(
       lambda(qname): ctg_size_map[qname] >= MIN_SEED_SIZE,
@@ -112,11 +111,30 @@ class BinMetaReadsStep(StepChunk):
       len(seeds),
       MIN_SEED_SIZE,
     ))
+    return seeds
+
+  def get_seeds(self):
+    ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
+    seeds = ctg_size_map.keys()
+    seeds = filter(
+      lambda(qname): ctg_size_map[qname] >= MIN_SEED_SIZE,
+      seeds,
+    )
+    self.logger.log('  {} idba0 contigs >= {}bp'.format(
+      len(seeds),
+      MIN_SEED_SIZE,
+    ))
+    return seeds
+
+  def run(self):
+    self.logger.log('get seed contigs from idba0')
+
+    #seeds = self.get_refmapped_seeds()
+    seeds = self.get_seeds()
 
     # strip seed contigs into bins such that no more than 4000 bins
     random.shuffle(seeds)
     bins = []
-    #group_size = 2
     group_size = max(1, len(seeds) / 4000)
     for i, seed_group in \
       enumerate(util.grouped(seeds, group_size, slop=True)):

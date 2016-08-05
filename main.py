@@ -14,6 +14,7 @@ from athena.stages import assemble_meta_bins
 from athena.stages import assemble_olc
 
 from athena.stages import haplotype_reads
+from athena.stages import compile_stats
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
@@ -49,11 +50,12 @@ def get_stages(options):
     if options.pipe_type == 'meta-asm':
       stages["bin_reads"] = bin_meta_reads.BinMetaReadsStep
       stages["index_reads"] = index_reads.IndexReadsStep
-      stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
+      #stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
       stages["assemble_olc"] = assemble_olc.AssembleOLCStep
     elif options.pipe_type == 'meta-hap':
-      stages["call_variants"] = haplotype_reads.CallVariantsStep
-      stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
+      #stages["call_variants"] = haplotype_reads.CallVariantsStep
+      #stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
+      stages["compile_stats"] = compile_stats.CompileStatsStep
     else:
       raise Exception("Pipeline not implemented yet")
 
