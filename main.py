@@ -51,7 +51,7 @@ def get_stages(options):
       stages["bin_reads"] = bin_meta_reads.BinMetaReadsStep
       stages["index_reads"] = index_reads.IndexReadsStep
       #stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
-      stages["assemble_olc"] = assemble_olc.AssembleOLCStep
+      #stages["assemble_olc"] = assemble_olc.AssembleOLCStep
     elif options.pipe_type == 'meta-hap':
       #stages["call_variants"] = haplotype_reads.CallVariantsStep
       #stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep

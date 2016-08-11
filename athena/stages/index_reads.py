@@ -60,7 +60,7 @@ class IndexReadsStep(StepChunk):
     #os.system(cmd)
 
     self.logger.log('index fastq {}'.format(self.nfq_path))
-    with FastqIndex(self.nfq_path) as idx:
+    with FastqIndex(self.nfq_path, self.logger) as idx:
       pass
     passfile_path = os.path.join(self.outdir, 'pass')
     util.touch(passfile_path)

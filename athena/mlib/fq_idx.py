@@ -21,8 +21,10 @@ class FastqIndex(object):
   def __init__(
     self,
     fq_path,
+    logger,
   ):
     
+    self.logger = logger
     self.fq_path = fq_path
     self.index_path = self.get_index_path(fq_path)
     self._bcode_set = None
@@ -56,8 +58,10 @@ class FastqIndex(object):
   def __build_index__(self):  
     numbytes = 0
     self._bcode_off_map = {}
+    num_pe = 0
     for fq_path in [self.fq_path]:
       for e in util.tenx_fastq_iter(fq_path, fmt='entries'):
+        num_pe += 1
         if e.bcode not in self._bcode_off_map:
           self._bcode_off_map[e.bcode] = numbytes
         numbytes += len(e.txt)
@@ -66,6 +70,13 @@ class FastqIndex(object):
     for fq_path in [self.fq_path]:
       print '  -', fq_path
     util.write_pickle(self.index_path, self._bcode_off_map)
+    num_bcodes = len(filter(
+      lambda(b): b.endswith('-1'),
+      self._bcode_off_map.keys(),
+    ))
+    self.logger.log('fqinfo${},{},{}'.format(
+      num_pe, len(self._bcode_off_map), num_bcodes,
+    ))
 
   def __load_index__(self):  
     self._bcode_off_map = util.load_pickle(self.index_path)
