@@ -29,9 +29,10 @@ class BaseStep(StepChunk):
       bins = util.load_pickle(options.bins_pickle_path)
     else:
       print 'creating haplotyping bins'
-      bins = list(enumerate(
-        util.get_fasta_partitions(options.ctgfasta_path, 4000)
-      ))
+      bins = map(
+        lambda(b, v): ('bin.{}'.format(b), v),
+        enumerate(util.get_fasta_partitions(options.ctgfasta_path, 128)),
+      )
       print '  - saving {}'.format(options.bins_pickle_path)
       util.write_pickle(options.bins_pickle_path, bins)
 

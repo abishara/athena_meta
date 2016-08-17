@@ -37,7 +37,7 @@ class BinMetaReadsStep(StepChunk):
   def outpaths(self, final=False):
     paths = {}
     paths['bins.p'] = self.options.bins_pickle_path
-    #paths['shit.p'] = 'shit'
+    paths['shit.p'] = 'shit'
     return paths
 
   def get_refmapped_seeds(self):
@@ -46,8 +46,8 @@ class BinMetaReadsStep(StepChunk):
     reffasta_path = '/scratch/PI/serafim/abishara/reference/hmp/all_seqs.fa'
     ctgref_bam_path = '/scratch/users/abishara/scratch/scratch.metagenome/align-contig-hmp.sorted.bam'
 
-    reffasta_path = '/scratch/PI/serafim/abishara/reference/refseq/allref.fa'
-    ctgref_bam_path = '/scratch/users/abishara/scratch/scratch.metagenome/align-contig-refseq.sorted.bam'
+    #reffasta_path = '/scratch/PI/serafim/abishara/reference/refseq/allref.fa'
+    #ctgref_bam_path = '/scratch/users/abishara/scratch/scratch.metagenome/align-contig-refseq.sorted.bam'
 
     # find ref seeds
     self.logger.log('find ref seed contigs')
@@ -194,9 +194,13 @@ def get_ref_seeds(
     cov = 1. * bpcov / size
     cands.append((cov, ref_ctg, size))
     if (
-      (size > 50000 and cov > 0.9) or
-      (size > 100000 and cov > 0.7)
+      (size > 100000 and cov > 0.9) or
+      (size > 300000 and cov > 0.7)
     ):
+    #if (
+    #  (size > 10000 and cov > 0.9) or
+    #  (size > 100000 and cov > 0.7)
+    #):
       cand_refctg_set.add(ref_ctg)
 
   for (cov, ref_ctg, size) in sorted(cands, reverse=True)[:20]:
