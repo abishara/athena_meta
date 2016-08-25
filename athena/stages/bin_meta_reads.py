@@ -37,7 +37,7 @@ class BinMetaReadsStep(StepChunk):
   def outpaths(self, final=False):
     paths = {}
     paths['bins.p'] = self.options.bins_pickle_path
-    paths['shit.p'] = 'shit'
+    #paths['shit.p'] = 'shit'
     return paths
 
   def get_refmapped_seeds(self):

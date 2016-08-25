@@ -44,6 +44,7 @@ class AssembleOLCStep(StepChunk):
     self.logger.log('merge input contigs')
 
     mergedfa_path = os.path.join(self.outdir, 'canu-input-contigs.fa')
+    mergedfiltfa_path = os.path.join(self.outdir, 'canu-input-contigs.filt.fa')
     seedsfa_path = os.path.join(self.outdir, 'hmp-seed-contigs.fa')
 
     # load all the bins
@@ -75,12 +76,30 @@ class AssembleOLCStep(StepChunk):
     #util.concat_files(input_paths, mergedfa_path)
     #die
 
+    mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
+    #cmd = 'bwa mem -t 4 {} {} | samtools view -bS - | samtools sort -o {} - '.format(
+    #  self.options.ctgfasta_path,
+    #  mergedfa_path,
+    #  mergedbam_path,
+    #)
+    #subprocess.check_call(cmd, shell=True)
+    #cmd = 'samtools index {}'.format(mergedbam_path)
+    #subprocess.check_call(cmd, shell=True)
+
+    #filter_inputs(
+    #  mergedbam_path,
+    #  mergedfa_path,
+    #  mergedfiltfa_path,
+    #)
+    #die
+
+
     #self.logger.log('  {} contigs, covering {} bases'.format(
     #  total_asm_contigs,
     #  total_asm_bp,
     #))
 
-    canu0_path = os.path.join(self.outdir, 'canu-asm-0')
+    canu0_path = os.path.join(self.outdir, 'canu-asm-1')
     cmd = \
 '{} \
 useGrid=1  \
@@ -94,7 +113,7 @@ stopOnReadQuality=false  \
 -pacbio-corrected {}'.format(
       canubin_path,
       canu0_path,
-      mergedfa_path
+      mergedfiltfa_path
     )
     #print 'cmd', cmd
     #subprocess.check_call(cmd, shell=True)
@@ -110,11 +129,11 @@ stopOnReadQuality=false  \
     # align idba0 contigs to canu contigs
     canu_contigs_path = os.path.join(canu0_path, 'canu.contigs.fasta')
 
-    # align reads to contigs
-    self.logger.log('aligning reads to contigs')
+    # align init contigs to canu contigs
+    self.logger.log('aligning seed contigs to olc contigs')
     idba0fa_path = self.options.ctgfasta_path
     outsam_path = os.path.join(self.outdir, 'align.on-contig.sam')
-    cmd = 'bwa mem {} {} > {}'.format(
+    cmd = 'bwa mem -t 4 {} {} > {}'.format(
       canu_contigs_path,
       idba0fa_path,
       outsam_path,
@@ -188,13 +207,39 @@ def get_unmapped_ctgs(fa_path, bam_path):
 
   ctg_size_map = util.get_fasta_sizes(fa_path)
   fhandle = pysam.Samfile(bam_path, 'rb')
-  umap_ctgs = set()
+  map_ctgs = set()
   for read in fhandle:
     if (
-      read.is_unmapped or
-      read.query_alignment_length < 0.8 * ctg_size_map[read.qname]
+      not read.is_unmapped and
+      read.query_alignment_length >= 0.8 * ctg_size_map[read.qname]
     ):
-      umap_ctgs.add(read.qname)
+      map_ctgs.add(read.qname)
   fhandle.close()
+  umap_ctgs = set(ctg_size_map.keys()) - map_ctgs
   return umap_ctgs
+
+def filter_inputs(
+  mergedbam_path,
+  mergedfa_path,
+  mergedfiltfa_path,
+):
+  ctg_size_map = util.get_fasta_sizes(mergedfa_path)
+  fhandle = pysam.Samfile(mergedbam_path)
+  full_ctgs = set()
+  for read in fhandle:
+    if read.is_unmapped:
+      continue
+    if read.query_alignment_length + 1000 >= ctg_size_map[read.qname]:
+      full_ctgs.add(read.qname)
+  fhandle.close()
+
+  print 'orig ctgs', len(ctg_size_map)
+  new_ctgs = set(ctg_size_map.keys()) - full_ctgs
+  print 'filtered ctgs', len(new_ctgs)
+  fasta = pysam.FastaFile(mergedfa_path)
+  with open(mergedfiltfa_path, 'w') as fout:
+    for ctg in new_ctgs:
+      seq = str(fasta.fetch(ctg).upper())
+      fout.write('>{}\n'.format(ctg))
+      fout.write('{}\n'.format(seq))
 

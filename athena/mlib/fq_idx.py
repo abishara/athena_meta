@@ -21,7 +21,7 @@ class FastqIndex(object):
   def __init__(
     self,
     fq_path,
-    logger,
+    logger=None,
   ):
     
     self.logger = logger

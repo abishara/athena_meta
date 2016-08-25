@@ -17,7 +17,8 @@ class IndexReadsStep(StepChunk):
   def get_steps(options):
     # strip over fastqs to load all fq fragments
     rootfq_path = options.longranger_fqs_path
-    for fq_path in glob.glob(rootfq_path + '/chnk*/files/*fastq*gz'):
+    for fq_path in glob.glob(rootfq_path + '/chnk*/files/*fastq'):
+    #for fq_path in glob.glob(rootfq_path + '/chnk*/files/*fastq*gz'):
       yield IndexReadsStep(options, fq_path)
 
   def outpaths(self, final=False):
@@ -42,7 +43,8 @@ class IndexReadsStep(StepChunk):
   ):
     self.options = options
     self.fq_path = fq_path
-    self.nfq_path = fq_path[:-3]
+    #self.nfq_path = fq_path[:-3]
+    self.nfq_path = fq_path
     util.mkdir_p(self.outdir)
 
   def __fqid(self):
@@ -55,9 +57,9 @@ class IndexReadsStep(StepChunk):
     )
 
   def run(self):
-    self.logger.log('uncompressing fastq')
-    cmd = 'zcat {} > {}'.format(self.fq_path, self.nfq_path)
-    #os.system(cmd)
+    #self.logger.log('uncompressing fastq')
+    #cmd = 'zcat {} > {}'.format(self.fq_path, self.nfq_path)
+    ##os.system(cmd)
 
     self.logger.log('index fastq {}'.format(self.nfq_path))
     with FastqIndex(self.nfq_path, self.logger) as idx:

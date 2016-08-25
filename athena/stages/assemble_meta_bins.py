@@ -90,7 +90,7 @@ class AssembleMetaBinnedStep(StepChunk):
     ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
 
     def get_barcode(read):
-      filt_list = filter(lambda(k, v): k == 'BX', read.tags)
+      filt_list = filter(lambda(k, v): k == 'BC', read.tags)
       if filt_list == []: 
         return None
       else:

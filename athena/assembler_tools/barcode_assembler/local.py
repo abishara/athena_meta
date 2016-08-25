@@ -150,7 +150,7 @@ class LocalAssembler(object):
     id_gen = util.IdGenerator()
 
     def get_barcode(read):
-      filt_list = filter(lambda(k, v): k == 'BX', read.tags)
+      filt_list = filter(lambda(k, v): k == 'BC', read.tags)
       if filt_list == []: 
         return None
       else:
