@@ -38,7 +38,7 @@ class AssembleOLCStep(StepChunk):
     return self.__class__.__name__
 
   def run(self):
-    self.logger.log('jointly assemble bins with OLC and architect scaffolding')
+    self.logger.log('jointly assemble bins with OLC')
 
     # collect input contig and local reasm contigs
     self.logger.log('merge input contigs')
@@ -73,24 +73,24 @@ class AssembleOLCStep(StepChunk):
     input_paths.append(seedsfa_path)
 
     # FIXME uncomment
-    #util.concat_files(input_paths, mergedfa_path)
+    util.concat_files(input_paths, mergedfa_path)
     #die
 
     mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
-    #cmd = 'bwa mem -t 4 {} {} | samtools view -bS - | samtools sort -o {} - '.format(
-    #  self.options.ctgfasta_path,
-    #  mergedfa_path,
-    #  mergedbam_path,
-    #)
-    #subprocess.check_call(cmd, shell=True)
-    #cmd = 'samtools index {}'.format(mergedbam_path)
-    #subprocess.check_call(cmd, shell=True)
+    cmd = 'bwa mem -t 4 {} {} | samtools view -bS - | samtools sort -o {} - '.format(
+      self.options.ctgfasta_path,
+      mergedfa_path,
+      mergedbam_path,
+    )
+    subprocess.check_call(cmd, shell=True)
+    cmd = 'samtools index {}'.format(mergedbam_path)
+    subprocess.check_call(cmd, shell=True)
 
-    #filter_inputs(
-    #  mergedbam_path,
-    #  mergedfa_path,
-    #  mergedfiltfa_path,
-    #)
+    filter_inputs(
+      mergedbam_path,
+      mergedfa_path,
+      mergedfiltfa_path,
+    )
     #die
 
 
@@ -107,17 +107,18 @@ gridOptions="-p owners" \
 errorRate=0.07  \
 genomeSize=45.00m  \
 contigFilter="2 2000 1.0 1.0 2" \
-stopOnReadQuality=false  \
--d {}  \
--p canu  \
+stopOnReadQuality=false \
+-d {} \
+-p canu \
+oeaMemory=12 cnsMemory=32 \
 -pacbio-corrected {}'.format(
       canubin_path,
       canu0_path,
       mergedfiltfa_path
     )
-    #print 'cmd', cmd
-    #subprocess.check_call(cmd, shell=True)
-    #die
+    print 'cmd', cmd
+    subprocess.check_call(cmd, shell=True)
+    die
 
     # index assembled contigs 
     self.logger.log('index canu assembled contigs')

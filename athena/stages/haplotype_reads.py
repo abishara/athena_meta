@@ -14,8 +14,6 @@ haplotyperbin_path = os.path.join(
 )
 assert os.path.isfile(haplotyperbin_path)
 
-MIN_CONTIG_SIZE = 20000
-
 #--------------------------------------------------------------------------
 # base class
 #--------------------------------------------------------------------------
@@ -31,7 +29,11 @@ class BaseStep(StepChunk):
       print 'creating haplotyping bins'
       bins = map(
         lambda(b, v): ('bin.{}'.format(b), v),
-        enumerate(util.get_fasta_partitions(options.ctgfasta_path, 128)),
+        enumerate(util.get_fasta_partitions(
+          options.ctgfasta_path,
+          128,
+          min_ctg_size=10000,
+        )),
       )
       print '  - saving {}'.format(options.bins_pickle_path)
       util.write_pickle(options.bins_pickle_path, bins)
@@ -42,6 +44,8 @@ class BaseStep(StepChunk):
       total_bases += sum(map(lambda(c): ctg_size_map[c], group))
       total_ctgs += len(group)
       yield cls(options, binid, group)
+      ## FIXME remove
+      #break
 
     print 'grouped {} total_ctgs covering {} bases'.format(
       total_ctgs,
@@ -140,20 +144,20 @@ class HaplotypeReadsStep(BaseStep):
     for ctg in self.ctgs:
       self.logger.log('  - {}'.format(ctg))
 
-      ## FIXME remove
-      #roi_str = '{}:{}-{}'.format(ctg, 0, 1000)
-      roi_str = '{}:{}-{}'.format(ctg, 0, ctg_size_map[ctg])
-      outdir = os.path.join(self.outdir, ctg)
-      haplotyper.cluster_reads(
-        self.options.reads_ctg_bam_path,
-        invcf_path,
-        roi_str,
-        outdir,
-      )
-      stats_path = os.path.join(outdir, 'stats.p')
-      hapvcf_path = os.path.join(outdir, 'clusters.vcf')
-      stats_paths.append((ctg, stats_path))
-      hapvcf_paths.append((ctg, hapvcf_path))
+      ctg_size = ctg_size_map[ctg]
+      for b, e in util.get_partitions(0, ctg_size, 200000):
+        roi_str = '{}:{}-{}'.format(ctg, b, e)
+        outdir = os.path.join(self.outdir, roi_str)
+        haplotyper.cluster_reads(
+          self.options.reads_ctg_bam_path,
+          invcf_path,
+          roi_str,
+          outdir,
+        )
+        stats_path = os.path.join(outdir, 'stats.p')
+        hapvcf_path = os.path.join(outdir, 'clusters.vcf')
+        stats_paths.append(((ctg, b, e), stats_path))
+        hapvcf_paths.append(((ctg, b, e), hapvcf_path))
 
     self.logger.log('merging outputs from all contigs in groups')
     strains_vcf_path = os.path.join(self.outdir, 'strains.vcf')
@@ -171,9 +175,9 @@ class HaplotypeReadsStep(BaseStep):
     
     mstats = [] 
     merged_stats_path = os.path.join(self.outdir, 'stats.p')
-    for ctg, stats_path in stats_paths:
+    for uid, stats_path in stats_paths:
       stats = util.load_pickle(stats_path)
-      mstats.append((ctg, stats))
+      mstats.append((uid, stats))
     util.write_pickle(merged_stats_path, mstats)
 
     self.logger.log('done')

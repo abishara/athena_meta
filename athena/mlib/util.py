@@ -108,12 +108,17 @@ def get_genome_partitions(
 def get_fasta_partitions(
   fasta_path,
   num_groups,
+  min_ctg_size=0,
 ):
   # partition contigs into roughly equal sized groups according to
   # num_groups
   fasta = pysam.FastaFile(fasta_path)
   ctg_size_map = get_fasta_sizes(fasta_path)
-  total_bases = sum(ctg_size_map.values())
+  filt_ctgs_d = filter(
+    lambda(c, s): s >= min_ctg_size,
+    ctg_size_map.items(),
+  )
+  total_bases = sum(map(lambda(c, s): s, filt_ctgs_d))
   bases_per_group = total_bases / num_groups
   assert bases_per_group > 0, "fasta too small to partition"
 
@@ -124,8 +129,12 @@ def get_fasta_partitions(
   #  key=lambda(c): fasta.get_reference_length(c),
   #  reverse=True,
   #):
-  for ctg in fasta.references:
-    group_bases += ctg_size_map[ctg]
+  for ctg, size in sorted(
+    filt_ctgs_d,
+    key=lambda(c,s): s,
+    reverse=True,
+  ):
+    group_bases += size
     group.append(ctg)
     if group_bases > bases_per_group:
       yield group
