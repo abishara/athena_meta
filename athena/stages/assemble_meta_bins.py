@@ -20,6 +20,10 @@ class AssembleMetaBinnedStep(StepChunk):
     bins = util.load_pickle(options.bins_pickle_path)
     
     for i, (binid, seeds) in enumerate(bins):
+      #if binid != 'bin.5470':
+      #  continue
+      #if binid != 'bin.2417':
+      #  continue
       #if 'contig-100_34108' not in seeds:
       #  continue
       yield AssembleMetaBinnedStep(options, binid, seeds)

@@ -110,10 +110,10 @@ class LocalAssembler(object):
     )
 
     #cmd = '{} -r {} -l {} -o {}'.format(
-    cmd = '{} --maxk 80 -r {} -o {}'.format(
+    cmd = '{} --maxk 80 -r {} -l {} -o {}'.format(
       idbabin_path,
       readsfa_path,
-      #lrhintsfa_path,
+      lrhintsfa_path,
       asmdir_path,
     )
     pp = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)

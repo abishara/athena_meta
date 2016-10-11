@@ -45,7 +45,7 @@ class AssembleOLCStep(StepChunk):
 
     mergedfa_path = os.path.join(self.outdir, 'canu-input-contigs.fa')
     mergedfiltfa_path = os.path.join(self.outdir, 'canu-input-contigs.filt.fa')
-    seedsfa_path = os.path.join(self.outdir, 'hmp-seed-contigs.fa')
+    seedsfa_path = os.path.join(self.outdir, 'seed-contigs.fa')
 
     # load all the bins
     bins = util.load_pickle(self.options.bins_pickle_path)
@@ -73,7 +73,7 @@ class AssembleOLCStep(StepChunk):
     input_paths.append(seedsfa_path)
 
     # FIXME uncomment
-    util.concat_files(input_paths, mergedfa_path)
+    #util.concat_files(input_paths, mergedfa_path)
     #die
 
     mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
@@ -82,15 +82,15 @@ class AssembleOLCStep(StepChunk):
       mergedfa_path,
       mergedbam_path,
     )
-    subprocess.check_call(cmd, shell=True)
+    #subprocess.check_call(cmd, shell=True)
     cmd = 'samtools index {}'.format(mergedbam_path)
-    subprocess.check_call(cmd, shell=True)
+    #subprocess.check_call(cmd, shell=True)
 
-    filter_inputs(
-      mergedbam_path,
-      mergedfa_path,
-      mergedfiltfa_path,
-    )
+    #filter_inputs(
+    #  mergedbam_path,
+    #  mergedfa_path,
+    #  mergedfiltfa_path,
+    #)
     #die
 
 
@@ -99,12 +99,12 @@ class AssembleOLCStep(StepChunk):
     #  total_asm_bp,
     #))
 
-    canu0_path = os.path.join(self.outdir, 'canu-asm-1')
+    canu0_path = os.path.join(self.outdir, 'canu-asm-1.seeds')
     cmd = \
 '{} \
 useGrid=1  \
 gridOptions="-p owners" \
-errorRate=0.07  \
+errorRate=0.06  \
 genomeSize=45.00m  \
 contigFilter="2 2000 1.0 1.0 2" \
 stopOnReadQuality=false \
@@ -117,8 +117,8 @@ oeaMemory=12 cnsMemory=32 \
       mergedfiltfa_path
     )
     print 'cmd', cmd
-    subprocess.check_call(cmd, shell=True)
-    die
+    #subprocess.check_call(cmd, shell=True)
+    #die
 
     # index assembled contigs 
     self.logger.log('index canu assembled contigs')
