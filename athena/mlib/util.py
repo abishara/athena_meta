@@ -29,12 +29,17 @@ class cd:
   def __exit__(self, etype, value, traceback):
     os.chdir(self.savedPath)
 
-def concat_files(input_list, output_path):
+def concat_files(input_list, output_path, appendnl=True):
   with open(output_path, 'w') as outf:
     for path in input_list:
       with open(path) as inf:
+        nonempty = False
         for line in inf:
+          nonempty = True
           outf.write(line)
+        if appendnl and nonempty and not line.endswith('\n'):
+          print 'WARNING last char not newline', path
+          outf.write('\n')
   return
 
 def touch(path, times=None):

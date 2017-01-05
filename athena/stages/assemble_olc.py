@@ -73,24 +73,25 @@ class AssembleOLCStep(StepChunk):
     input_paths.append(seedsfa_path)
 
     # FIXME uncomment
-    #util.concat_files(input_paths, mergedfa_path)
+    util.concat_files(input_paths, mergedfa_path)
+    assert is_valid_fasta(mergedfa_path), "merge FASTA not valid"
     #die
 
     mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
-    cmd = 'bwa mem -t 4 {} {} | samtools view -bS - | samtools sort -o {} - '.format(
+    cmd = 'bwa mem -t 8 {} {} | samtools view -bS - | samtools sort -o {} - '.format(
       self.options.ctgfasta_path,
       mergedfa_path,
       mergedbam_path,
     )
-    #subprocess.check_call(cmd, shell=True)
+    subprocess.check_call(cmd, shell=True)
     cmd = 'samtools index {}'.format(mergedbam_path)
-    #subprocess.check_call(cmd, shell=True)
+    subprocess.check_call(cmd, shell=True)
 
-    #filter_inputs(
-    #  mergedbam_path,
-    #  mergedfa_path,
-    #  mergedfiltfa_path,
-    #)
+    filter_inputs(
+      mergedbam_path,
+      mergedfa_path,
+      mergedfiltfa_path,
+    )
     #die
 
 
@@ -108,17 +109,18 @@ errorRate=0.06  \
 genomeSize=45.00m  \
 contigFilter="2 2000 1.0 1.0 2" \
 stopOnReadQuality=false \
+-assemble \
 -d {} \
 -p canu \
-oeaMemory=12 cnsMemory=32 \
+oeaMemory=12 cnsMemory=32 batMemory=50 \
 -pacbio-corrected {}'.format(
       canubin_path,
       canu0_path,
       mergedfiltfa_path
     )
     print 'cmd', cmd
-    #subprocess.check_call(cmd, shell=True)
-    #die
+    subprocess.check_call(cmd, shell=True)
+    die
 
     # index assembled contigs 
     self.logger.log('index canu assembled contigs')
@@ -230,6 +232,9 @@ def filter_inputs(
   for read in fhandle:
     if read.is_unmapped:
       continue
+    # exclude identity alignments
+    if read.qname == fhandle.getrname(read.tid):
+      continue
     if read.query_alignment_length + 1000 >= ctg_size_map[read.qname]:
       full_ctgs.add(read.qname)
   fhandle.close()
@@ -243,4 +248,18 @@ def filter_inputs(
       seq = str(fasta.fetch(ctg).upper())
       fout.write('>{}\n'.format(ctg))
       fout.write('{}\n'.format(seq))
+
+def is_valid_fasta(fa_path):
+  alpha = set('acgtACGT')
+  with open(fa_path) as fin:
+    for line in fin:
+      if line.startswith('>'):
+        continue
+      seq = set(line.strip())
+      if not seq.issubset(alpha):
+        return False
+
+  return True
+
+
 

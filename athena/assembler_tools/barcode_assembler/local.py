@@ -29,6 +29,7 @@ class LocalAssembly(object):
     link_pos,
     bcode_set,
     ds_bcode_set,
+    local_asm_cov,
   ):
     self.uid = uid
     self.root_ctg = root_ctg
@@ -37,6 +38,7 @@ class LocalAssembly(object):
     self.link_pos = link_pos
     self.bcode_set = bcode_set
     self.ds_bcode_set = ds_bcode_set
+    self.local_asm_cov = local_asm_cov
 
   def __str__(self):
     return '{}_{}.{}'.format(self.root_ctg, self.link_ctg, self.uid)
@@ -88,10 +90,17 @@ class LocalAssembler(object):
     self.logger.log('assembling with neighbor {}'.format(local_asm.link_ctg))
     self.logger.log('  - {} orig barcodes'.format(len(local_asm.bcode_set)))
     self.logger.log('  - {} downsampled barcodes'.format(len(local_asm.ds_bcode_set)))
+    self.logger.log('  - {}x estimated local coverage'.format(local_asm.local_asm_cov))
 
     lrhintsfa_path = os.path.join(self.fqdir_path, 'lr-hints.{}.fa'.format(local_asm.uid))
     readsfa_path = os.path.join(self.fqdir_path, 'reads.{}.fa'.format(local_asm.uid))
     asmdir_path = os.path.join(self.asmrootdir_path, 'local-asm.{}'.format(local_asm.uid))
+
+    # minimum required support based on estimated local_cov
+    # NOTE do not allow anything to assemble with less than half of
+    # min_support
+    min_support = max(2, int(local_asm.local_asm_cov / 3))
+    self.logger.log('  - {} min_support required'.format(min_support))
 
     # filter input reads
     get_bcode_reads(
@@ -107,15 +116,23 @@ class LocalAssembler(object):
       hints,
       self.ctgfasta_path,
       lrhintsfa_path,
+      multiplicity=max(10, min_support+2),
     )
 
     #cmd = '{} -r {} -l {} -o {}'.format(
-    cmd = '{} --maxk 80 -r {} -l {} -o {}'.format(
+    cmd = '{} --min_support {} --maxk 80 -r {} -l {} -o {}'.format(
       idbabin_path,
+      min_support,
       readsfa_path,
       lrhintsfa_path,
       asmdir_path,
     )
+    #cmd = '{} --maxk 80 -r {} -l {} -o {}'.format(
+    #  idbabin_path,
+    #  readsfa_path,
+    #  lrhintsfa_path,
+    #  asmdir_path,
+    #)
     pp = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
     retcode = pp.wait()
     print "::::", retcode
@@ -157,6 +174,18 @@ class LocalAssembler(object):
         k, v = filt_list[0]
         return v
   
+    # compute read size
+    # FIXME this is really hacky
+    read_size = 0
+    occ = 0
+    for read in fhandle.fetch(self.root_ctg):
+      if read.is_unmapped or read.is_secondary or read.is_supplementary:
+        continue
+      read_size = max(read_size, read.query_length)
+      occ += 1
+      if occ > 10:
+        break
+
     def get_ctg_links(ctg, begin=None, end=None):
       bcodes = set()
       bcode_counts = Counter()
@@ -322,6 +351,17 @@ class LocalAssembler(object):
           key=lambda(b): root_bcode_counts[b] + link_bcode_counts[b],
         )[:400])
 
+      # estimate coverage of the barcodes for this local assembly
+      ctgs_size = (
+        self.ctg_size_map[self.root_ctg] + 
+        self.ctg_size_map[link_ctg]
+      )
+      num_reads = sum(map(
+        lambda(b): root_bcode_counts[b] + link_bcode_counts[b],
+        ds_bcode_set,
+      ))
+      local_asm_cov = 1. * num_reads * read_size / ctgs_size
+
       # must be recipricol link
       assert self.root_ctg in link_ctg_pos_map[link_ctg], \
         "recipricol link in link ctg {} to root {} not found".format(
@@ -337,6 +377,7 @@ class LocalAssembler(object):
           link_ctg_pos_map[link_ctg][self.root_ctg],
           i_bcode_set,
           ds_bcode_set,
+          local_asm_cov,
         )
       )
 
@@ -393,8 +434,16 @@ class LocalAssembler(object):
       self.logger.log('large root contig of size {}'.format(root_size))
       self.logger.log('  - generate head+tail local assemblies')
       # head
-      (head_bcode_set, _, _, _, _,) = \
+      (head_bcode_set, head_root_bcode_counts, _, _, _,) = \
         get_ctg_links(self.root_ctg, 0, SEED_SELF_ASM_SIZE)
+      ds_bcode_set = downsample(head_bcode_set)
+
+      num_reads = sum(map(
+        lambda(b): head_root_bcode_counts[b],
+        ds_bcode_set,
+      ))
+      local_asm_cov = 1. * num_reads * read_size / SEED_SELF_ASM_SIZE
+
       begin_pos = (0, True)
       local_asms.append(
         LocalAssembly(
@@ -404,12 +453,21 @@ class LocalAssembler(object):
           None,
           None,
           head_bcode_set,
-          downsample(head_bcode_set),
+          ds_bcode_set,
+          local_asm_cov,
         )
       )
       # tail
-      (tail_bcode_set, _, _, _, _,) = \
+      (tail_bcode_set, tail_root_bcode_counts, _, _, _,) = \
         get_ctg_links(self.root_ctg, root_size - SEED_SELF_ASM_SIZE, root_size)
+      ds_bcode_set = downsample(tail_bcode_set)
+
+      num_reads = sum(map(
+        lambda(b): tail_root_bcode_counts[b],
+        ds_bcode_set,
+      ))
+      local_asm_cov = 1. * num_reads * read_size / SEED_SELF_ASM_SIZE
+
       end_pos = (self.ctg_size_map[self.root_ctg], False)
       local_asms.append(
         LocalAssembly(
@@ -419,10 +477,17 @@ class LocalAssembler(object):
           None,
           None,
           tail_bcode_set,
-          downsample(tail_bcode_set),
+          ds_bcode_set,
+          local_asm_cov,
         )
       )
     else:
+      ds_bcode_set = downsample(root_bcode_set)
+      num_reads = sum(map(
+        lambda(b): root_bcode_counts[b],
+        ds_bcode_set,
+      ))
+      local_asm_cov = 1. * num_reads * read_size / root_size
       local_asms.append(
         LocalAssembly(
           id_gen.get_next(),
@@ -431,7 +496,8 @@ class LocalAssembler(object):
           None,
           None,
           root_bcode_set,
-          downsample(root_bcode_set),
+          ds_bcode_set,
+          local_asm_cov,
         )
       )
   
@@ -453,6 +519,7 @@ def get_lrhints_fa(
   ctgs,
   infa_path,
   outfa_path,
+  multiplicity=10
 ):
   with open(outfa_path, 'w') as fout:
     ctg_fasta = pysam.FastaFile(infa_path)
@@ -468,7 +535,7 @@ def get_lrhints_fa(
       # skip empty or uninformative long reads
       if len(seq_sub) < 200:
         continue
-      for _ in xrange(10):
+      for _ in xrange(multiplicity):
         fout.write('>{}\n{}\n'.format(ctg, seq_sub))
 
 def get_bcode_reads(infq_paths, outfa_path, bcode_set):
