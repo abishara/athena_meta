@@ -6,14 +6,13 @@ import logging
 from athena.mlib import util
 
 from athena import pipeline
-from athena.options import MetaAsmOptions, MetaHapOptions
+from athena.options import MetaAsmOptions
 
 from athena.stages import index_reads
 from athena.stages import bin_meta_reads
 from athena.stages import assemble_meta_bins
 from athena.stages import assemble_olc
 
-from athena.stages import haplotype_reads
 from athena.stages import compile_stats
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
@@ -52,10 +51,6 @@ def get_stages(options):
       stages["index_reads"] = index_reads.IndexReadsStep
       stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
       stages["assemble_olc"] = assemble_olc.AssembleOLCStep
-    elif options.pipe_type == 'meta-hap':
-      stages["call_variants"] = haplotype_reads.CallVariantsStep
-      #stages["haplotype_reads"] = haplotype_reads.HaplotypeReadsStep
-      #stages["compile_stats"] = compile_stats.CompileStatsStep
     else:
       raise Exception("Pipeline not implemented yet")
 
@@ -83,8 +78,6 @@ def main(argv):
   help_str = '''
   usage: athena_meta.py <path/to/config.json> [pipeline]
 
-  pipeline: {meta-asm, meta-hap}, default: meta-asm
-
   NOTE: dirname(config.json) specifies root output directory
   '''
   if len(argv) != 2 and len(argv) != 3:
@@ -105,7 +98,6 @@ def main(argv):
   # load config json
   options_cls = {
     'meta-asm': MetaAsmOptions,
-    'meta-hap': MetaHapOptions,
   }[pipe_type]
   options = options_cls.deserialize(config_path)
 
