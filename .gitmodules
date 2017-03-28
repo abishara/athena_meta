@@ -1,6 +1,0 @@
-[submodule "athena/assembler_tools/haplotyper"]
-	path = athena/assembler_tools/haplotyper
-	url = git@bitbucket.org:abishara89/haplotyper.git
-[submodule "athena/assembler_tools/architect"]
-	path = athena/assembler_tools/architect
-	url = git@bitbucket.org:abishara89/architect.git
