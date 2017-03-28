@@ -41,3 +41,4 @@ class MultiprocessingCluster(Cluster):
     def map(self, fn, args):
         pool = multiprocessing.Pool(processes=self.processes)
         return pool.map_async(fn, args).get(999)
+

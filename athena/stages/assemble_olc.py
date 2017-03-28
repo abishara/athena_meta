@@ -43,14 +43,14 @@ class AssembleOLCStep(StepChunk):
     # collect input contig and local reasm contigs
     self.logger.log('merge input contigs')
 
-    mergedfa_path = os.path.join(self.outdir, 'canu-input-contigs.fa')
-    mergedfiltfa_path = os.path.join(self.outdir, 'canu-input-contigs.filt.fa')
+    premergedfa_path = os.path.join(self.outdir, 'pre-canu-input-contigs.fa')
+    premergedfiltfa_path = os.path.join(self.outdir, 'pre-canu-input-contigs.filt.fa')
     seedsfa_path = os.path.join(self.outdir, 'seed-contigs.fa')
+    mergedfiltfa_path = os.path.join(self.outdir, 'canu-input-contigs.filt.fa')
 
     # load all the bins
     bins = util.load_pickle(self.options.bins_pickle_path)
 
-    #input_paths = [self.options.ctgfasta_path]
     input_paths = []
     seed_ctgs = set()
     for (binid, seed_group) in bins:
@@ -63,24 +63,15 @@ class AssembleOLCStep(StepChunk):
       else:
         input_paths.append(fa_path)
 
-    # append input hmp seed contigs
-    with open(seedsfa_path, 'w') as fout:
-      fasta = pysam.FastaFile(self.options.ctgfasta_path)
-      for ctg in seed_ctgs:  
-        seq = str(fasta.fetch(ctg).upper())
-        fout.write('>{}\n'.format(ctg))
-        fout.write(str(seq) + '\n')
-    input_paths.append(seedsfa_path)
-
     # FIXME uncomment
-    util.concat_files(input_paths, mergedfa_path)
-    assert is_valid_fasta(mergedfa_path), "merge FASTA not valid"
+    util.concat_files(input_paths, premergedfa_path)
+    assert is_valid_fasta(premergedfa_path), "merge FASTA not valid"
     #die
 
     mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
     cmd = 'bwa mem -t 8 {} {} | samtools view -bS - | samtools sort -o {} - '.format(
       self.options.ctgfasta_path,
-      mergedfa_path,
+      premergedfa_path,
       mergedbam_path,
     )
     subprocess.check_call(cmd, shell=True)
@@ -89,18 +80,28 @@ class AssembleOLCStep(StepChunk):
 
     filter_inputs(
       mergedbam_path,
-      mergedfa_path,
+      premergedfa_path,
+      premergedfiltfa_path,
+    )
+
+    # append input seed contigs
+    with open(seedsfa_path, 'w') as fout:
+      fasta = pysam.FastaFile(self.options.ctgfasta_path)
+      for ctg in seed_ctgs:  
+        seq = str(fasta.fetch(ctg).upper())
+        for i in xrange(5):
+        #for i in xrange(2):
+          fout.write('>{}.{}\n'.format(ctg, i))
+          fout.write(str(seq) + '\n')
+
+    util.concat_files(
+      [premergedfiltfa_path, seedsfa_path], 
       mergedfiltfa_path,
     )
-    #die
+    assert is_valid_fasta(mergedfiltfa_path), "merge FASTA not valid"
 
-
-    #self.logger.log('  {} contigs, covering {} bases'.format(
-    #  total_asm_contigs,
-    #  total_asm_bp,
-    #))
-
-    canu0_path = os.path.join(self.outdir, 'canu-asm-1.seeds')
+    canu0_path = os.path.join(self.outdir, 'canu-asm-1.seeds.retry')
+#-assemble \
     cmd = \
 '{} \
 useGrid=1  \
@@ -109,7 +110,6 @@ errorRate=0.06  \
 genomeSize=45.00m  \
 contigFilter="2 2000 1.0 1.0 2" \
 stopOnReadQuality=false \
--assemble \
 -d {} \
 -p canu \
 oeaMemory=12 cnsMemory=32 batMemory=50 \
@@ -231,9 +231,6 @@ def filter_inputs(
   full_ctgs = set()
   for read in fhandle:
     if read.is_unmapped:
-      continue
-    # exclude identity alignments
-    if read.qname == fhandle.getrname(read.tid):
       continue
     if read.query_alignment_length + 1000 >= ctg_size_map[read.qname]:
       full_ctgs.add(read.qname)

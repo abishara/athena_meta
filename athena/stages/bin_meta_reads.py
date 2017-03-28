@@ -194,6 +194,12 @@ class BinMetaReadsStep(StepChunk):
 'NODE_9205_length_225_cov_1.00588_ID_229796',
     ]
 
+    seeds = [
+'NODE_2_length_240395_cov_25.0891_ID_211376',
+'NODE_2405_length_512_cov_26.0197_ID_216278',
+'NODE_1_length_290890_cov_20.7303_ID_211374',
+    ]
+
     # strip seed contigs into bins such that no more than 4000 bins
     random.shuffle(seeds)
     bins = []
