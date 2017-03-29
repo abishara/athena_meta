@@ -5,8 +5,6 @@ import subprocess
 from collections import defaultdict
 import glob
 
-from ..assembler_tools.haplotyper import haplotyper
-
 from .step import StepChunk
 from ..mlib import util
 from ..mlib.fq_idx import FastqIndex
