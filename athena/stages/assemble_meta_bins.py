@@ -20,12 +20,6 @@ class AssembleMetaBinnedStep(StepChunk):
     bins = util.load_pickle(options.bins_pickle_path)
     
     for i, (binid, seeds) in enumerate(bins):
-      #if binid != 'bin.5470':
-      #  continue
-      #if binid != 'bin.2417':
-      #  continue
-      #if 'contig-100_34108' not in seeds:
-      #  continue
       yield AssembleMetaBinnedStep(options, binid, seeds)
 
   def __init__(
@@ -93,14 +87,6 @@ class AssembleMetaBinnedStep(StepChunk):
 
     ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
 
-    def get_barcode(read):
-      filt_list = filter(lambda(k, v): k == 'BC', read.tags)
-      if filt_list == []: 
-        return None
-      else:
-        k, v = filt_list[0]
-        return v
-
     # check enough read/barcode coverage to warrant denovo assembly
     numreads = 0
     bcodes = set()
@@ -109,7 +95,7 @@ class AssembleMetaBinnedStep(StepChunk):
       if read.is_unmapped or read.mapq < 10:
         continue
       numreads += 1
-      bcode = get_barcode(read)
+      bcode = util.get_barcode(read)
       if bcode != None:
         bcodes.add(bcode)
     fhandle.close()
@@ -127,7 +113,7 @@ class AssembleMetaBinnedStep(StepChunk):
       root_ctg,
       self.options.ctgfasta_path,
       self.options.reads_ctg_bam_path,
-      self.options.longranger_fqs_path,
+      self.options.input_fqs,
       asmrootdir_path,
       self.logger,
     )
@@ -149,11 +135,6 @@ class AssembleMetaBinnedStep(StepChunk):
     self.logger.log('performing local assemblies')
     local_asm_results = asm.assemble(local_asms, filt_ctgs=seed_ctgs)
     self.logger.log('  - finished {}'.format(len(local_asms)))
-
-    #util.write_pickle(
-    #  os.path.join(asmrootdir_path, 'local-asm.p'),
-    #  asm.dump_info(),
-    #)
 
     # merge output contigs from local assemblies
     self.logger.log('merge long output contigs from local assemblies')

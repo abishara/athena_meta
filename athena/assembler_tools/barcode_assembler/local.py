@@ -13,9 +13,6 @@ from athena.mlib.fq_idx import FastqIndex
 # NOTE must be in path
 idbabin_path = 'idba_ud'
 
-MIN_SEED_SIZE = 500
-MIN_SEED_SIZE = 400
-
 SEED_SELF_ASM_SIZE = 10000
 
 class LocalAssembly(object):
@@ -50,7 +47,7 @@ class LocalAssembler(object):
     root_ctg,
     ctgfasta_path,
     reads_ctg_bam_path,
-    longranger_fqs_path,
+    input_fqs,
     asmrootdir_path,
     # FIXME hack to get stdout logged
     logger,
@@ -61,7 +58,7 @@ class LocalAssembler(object):
     self.asmrootdir_path     = asmrootdir_path
     self.logger = logger
 
-    self.tenxfq_paths = list(glob.glob(longranger_fqs_path + '/chnk*/files/*fastq'))
+    self.tenxfq_paths = list(glob.glob(input_fqs))
 
     self.fqdir_path = os.path.join(self.asmrootdir_path, 'fqs')
     util.mkdir_p(self.asmrootdir_path)
@@ -166,14 +163,6 @@ class LocalAssembler(object):
     fhandle = pysam.Samfile(self.reads_ctg_bam_path, 'rb')
     id_gen = util.IdGenerator()
 
-    def get_barcode(read):
-      filt_list = filter(lambda(k, v): k == 'BC', read.tags)
-      if filt_list == []: 
-        return None
-      else:
-        k, v = filt_list[0]
-        return v
-  
     # compute read size
     # FIXME this is really hacky
     read_size = 0
@@ -206,7 +195,7 @@ class LocalAssembler(object):
         # skip low quality links for now
         if read.mapq < 10:
           continue
-        bcode = get_barcode(read)
+        bcode = util.get_barcode(read)
         if bcode == None:
           continue
         optid = (read.pos, read.aend, bcode)
@@ -544,14 +533,13 @@ def get_bcode_reads(infq_paths, outfa_path, bcode_set):
     for fq_path in infq_paths:
       with FastqIndex(fq_path) as idx:
         for bcode in bcode_set & idx.bcode_set:
-          for e in idx.get_reads(bcode):
+          for _, qname, lines in idx.get_reads(bcode):
             # tag qname with barcode
-            nqname = '{}${}'.format(bcode, e.qname)
+            nqname = '{}${}'.format(bcode, qname)
+            seq = lines[1].strip()
             fout.write('>{}\n'.format(nqname))
-            fout.write('{}\n'.format(e.seq1))
-            fout.write('>{}\n'.format(nqname))
-            fout.write('{}\n'.format(e.seq2))
-            seen_set.add(e.bcode)
+            fout.write('{}\n'.format(seq))
+          seen_set.add(bcode)
   assert seen_set.issubset(bcode_set), 'not all barcodes loaded'
   return
 

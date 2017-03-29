@@ -54,6 +54,9 @@ class Options(object):
     def __init__(self, options_path, **kwdargs):
         self.options_path = options_path
         self._output_dir = os.path.dirname(self.options_path)
+        if self._output_dir == '':
+          self._output_dir = './'
+
 
         # set required attributes to None
         for opt in self.required:
@@ -124,7 +127,7 @@ class MetaAsmOptions(Options):
       return [
         'ctgfasta_path',
         'reads_ctg_bam_path',
-        'longranger_fqs_path',
+        'input_fqs',
       ]
 
     @classproperty

@@ -13,8 +13,6 @@ from athena.stages import bin_meta_reads
 from athena.stages import assemble_meta_bins
 from athena.stages import assemble_olc
 
-from athena.stages import compile_stats
-
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
 def run(options):

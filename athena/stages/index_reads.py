@@ -14,9 +14,8 @@ class IndexReadsStep(StepChunk):
   @staticmethod
   def get_steps(options):
     # strip over fastqs to load all fq fragments
-    rootfq_path = options.longranger_fqs_path
-    for fq_path in glob.glob(rootfq_path + '/chnk*/files/*fastq'):
-    #for fq_path in glob.glob(rootfq_path + '/chnk*/files/*fastq*gz'):
+    rootfq_path = options.input_fqs
+    for fq_path in glob.glob(options.input_fqs):
       yield IndexReadsStep(options, fq_path)
 
   def outpaths(self, final=False):

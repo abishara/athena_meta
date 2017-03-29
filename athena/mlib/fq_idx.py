@@ -1,6 +1,7 @@
 import os
 import sys
 import cPickle as pickle
+from itertools import groupby
 
 import util
 
@@ -59,12 +60,25 @@ class FastqIndex(object):
     numbytes = 0
     self._bcode_off_map = {}
     num_pe = 0
-    for fq_path in [self.fq_path]:
-      for e in util.tenx_fastq_iter(fq_path, fmt='entries'):
-        num_pe += 1
-        if e.bcode not in self._bcode_off_map:
-          self._bcode_off_map[e.bcode] = numbytes
-        numbytes += len(e.txt)
+
+    assert not self.fq_path.endswith('.gz'), \
+      "gzipped fq not supported"
+    with open(self.fq_path) as f:
+      seen_set = set()
+      for bcode, reads_iter in groupby(
+        util.fastq_iter(f),
+        lambda(x): x[0],
+      ):
+        assert bcode not in seen_set, \
+"fastq {} NOT in barcode sorted order. Ensure reads that share barcodes \
+are in a block together".format(self.fq_path)
+        seen_set.add(bcode)
+        if bcode not in self._bcode_off_map:
+          self._bcode_off_map[bcode] = numbytes
+        for _, qname, lines in reads_iter:
+          num_pe += 1
+          txt = ''.join(lines)
+          numbytes += len(txt)
 
     print 'writing index for fqs'
     for fq_path in [self.fq_path]:
@@ -91,8 +105,9 @@ class FastqIndex(object):
     f = self.f_map[self.fq_path]
     f.seek(offset, 0)
 
-    for e in util.f_iter_tenx(f,fmt='entries'):
-      if e.bcode != bcode:
+    for e in util.fastq_iter(f):
+      _bcode = e[0]
+      if _bcode != bcode:
         break
       yield e
 

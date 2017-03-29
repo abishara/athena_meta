@@ -4,7 +4,6 @@ import pysam
 from itertools import chain, tee, izip
 import gzip
 import cPickle as pickle
-from bx.intervals.intersection import IntervalTree
 from collections import defaultdict, Counter, namedtuple
 
 #--------------------------------------------------------------------------
@@ -65,94 +64,7 @@ def load_pickle(path):
   return obj
 
 #--------------------------------------------------------------------------
-# intervals
-#--------------------------------------------------------------------------
-def load_bed(bed_path):
-  intervals_map = defaultdict(lambda: IntervalTree(1,1))
-  with open(bed_path) as f:
-    for i, line in enumerate(f):
-      if line.startswith('#'):
-        continue
-      words = line.split('\t')
-      ctg = words[0]
-      b = int(words[1])
-      e = int(words[2])
-      intervals_map[ctg].insert(b, e, i)
-  return intervals_map
-
-#--------------------------------------------------------------------------
-# partitioning
-#--------------------------------------------------------------------------
-def pairwise(iterable):
-  a, b = tee(iterable)
-  next(b, None)
-  return izip(a, b)
-
-def get_partitions(begin, end, step):
-  return pairwise(chain(xrange(begin,end,step), [end]))
-
-def get_genome_partitions(
-  fasta_path,
-  window_size,
-  step_size,
-  sel_intervals=None,
-  sel_ctgs=None,
-):
-  f = pysam.FastaFile(fasta_path)
-  
-  for ctg in f.references:
-    if sel_ctgs and ctg not in sel_ctgs:
-      continue
-    l = f.get_reference_length(ctg)
-    for (b, _) in get_partitions(0, l, step_size):
-      e = b + window_size
-      yield (ctg, b, e)
-  f.close()
-
-
-def get_fasta_partitions(
-  fasta_path,
-  num_groups,
-  min_ctg_size=0,
-):
-  # partition contigs into roughly equal sized groups according to
-  # num_groups
-  fasta = pysam.FastaFile(fasta_path)
-  ctg_size_map = get_fasta_sizes(fasta_path)
-  filt_ctgs_d = filter(
-    lambda(c, s): s >= min_ctg_size,
-    ctg_size_map.items(),
-  )
-  total_bases = sum(map(lambda(c, s): s, filt_ctgs_d))
-  bases_per_group = total_bases / num_groups
-  assert bases_per_group > 0, "fasta too small to partition"
-
-  group = []
-  group_bases = 0
-  #for ctg in sorted(
-  #  fasta.references,
-  #  key=lambda(c): fasta.get_reference_length(c),
-  #  reverse=True,
-  #):
-  for ctg, size in sorted(
-    filt_ctgs_d,
-    key=lambda(c,s): s,
-    reverse=True,
-  ):
-    group_bases += size
-    group.append(ctg)
-    if group_bases > bases_per_group:
-      yield group
-      group_bases = 0
-      group = []
-  # tail group
-  if group != []:
-    yield group
-
-  raise StopIteration
-  
-#--------------------------------------------------------------------------
-# fastq
+# fa + fastq + bam
 #--------------------------------------------------------------------------
 def grouped(iterator, n, slop=False):
   iterator = iter(iterator)
@@ -166,117 +78,13 @@ def grouped(iterator, n, slop=False):
         yield vals_f
       raise StopIteration
 
-FastaEntry_t = namedtuple(
-  'FastaEntry_t',
-  [
-    'qname',
-    'qname_full',
-    'header',
-    'seq',
-    'txt',
-  ]
-)
-def fa_iter(fa):
-  with open(fa) as f:
-    for fields in grouped(f, 2):
-      qname_ln = fields[0]
-      qname = qname_ln[1:].strip()
-      txt = ''.join(fields)
-      yield FastaEntry_t(
-        qname=qname.split()[0],
-        qname_full=qname,
-        header=fields[0].strip(),
-        seq=fields[1].strip(),
-        txt=txt,
-      )
-      #yield (qname, txt)
+def fastq_iter(f):
+  for lines in grouped(f, 4):
+    qname, _, bcode = lines[0].strip().split('\t')[:3]
+    qname = qname[1:]
+    bcode = bcode.split(':')[-1]
+    yield bcode, qname, lines
   raise StopIteration
-
-TenXFastqEntry_t = namedtuple(
-  'TenXFastqEntry_t',
-  [
-    'qname',
-    'seq1',
-    'qual1',
-    'seq2',
-    'qual2',
-    'bcode',
-    'bcodequal',
-    'bcoderaw',
-    'txt',
-  ]
-)
-
-
-def tenx_fastq_iter(fq, fmt='raw'):
-  assert fmt in [
-    'raw',
-    'fa',
-    'fa-bcode',
-    'entries',
-  ]
-  assert os.path.isfile(fq)
-  open_f = open
-  if fq.endswith('.gz'):
-    open_f = gzip.open
-  with open_f(fq) as f:
-    for e in  f_iter_tenx(f, fmt):
-      yield e
-
-def f_iter_tenx(f, fmt='raw'):
-  for fields in grouped(f, 9):
-    bcode_raw = fields[5].strip()
-    bcode = bcode_raw
-    if ',' in bcode_raw:
-      bcode, bcode_raw = bcode_raw.split(',')
-    if fmt == 'entries':
-      rtxt = ''.join(fields)
-      yield TenXFastqEntry_t(
-        qname=fields[0].split()[0][1:],
-        seq1=fields[1].strip(),
-        qual1=fields[2].strip(),
-        seq2=fields[3].strip(),
-        qual2=fields[4].strip(),
-        bcode=bcode,
-        bcodequal=fields[6].strip(),
-        bcoderaw=bcode_raw,
-        txt=rtxt,
-      )
-    elif fmt == 'raw':
-      rtxt = ''.join(fields)
-      yield (bcode, rtxt)
-    elif fmt in ['fa', 'fa-bcode']:
-      qname_ln = fields[0]
-      # strip aux fields
-      qname_w = qname_ln.split()[0]
-      # strip /1,/2
-      qname = qname_w.split('/')[0]
-      # strip @
-      assert qname.startswith('@')
-      qname = qname[1:]
-
-      if fmt == 'fa-bcode':
-        header = '>'+bcode+'$'+qname+'\n'
-      else:
-        header = '>'+qname+'\n'
-      rtxt = ''.join([
-        header,
-        fields[1],
-        header,
-        fields[3],
-      ])
-      yield (bcode, rtxt)
-
-  raise StopIteration
-
-def convert_tenx_fq2fa(tenxfq_path, fa_path):
-  with open(fa_path, 'w') as f:
-    for _, txt in tenx_fastq_iter(tenxfq_path, fmt='fa'):
-      f.write(txt)
-def convert_tenx_fq2bcodefa(tenxfq_path, fa_path):
-  with open(fa_path, 'w') as f:
-    for _, txt in tenx_fastq_iter(tenxfq_path, fmt='fa-bcode'):
-      f.write(txt)
 
 def get_fasta_sizes(fa_path):
   fasta = pysam.FastaFile(fa_path)
@@ -286,6 +94,14 @@ def get_fasta_sizes(fa_path):
     ctg_size_map[ctg] = size
   return ctg_size_map
 
+def get_barcode(read):
+  filt_list = filter(lambda(k, v): k == 'BC', read.tags)
+  if filt_list == []: 
+    return None
+  else:
+    k, v = filt_list[0]
+    return v
+  
 #--------------------------------------------------------------------------
 # id 
 #--------------------------------------------------------------------------

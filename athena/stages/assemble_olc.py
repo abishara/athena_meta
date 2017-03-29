@@ -7,10 +7,8 @@ from collections import defaultdict, Counter
 from .step import StepChunk
 from ..mlib import util
 
-# FIXME harcoded paths
 # NOTE must be in path
 canubin_path = '/home/abishara/sources/canu/Linux-amd64/bin/canu'
-olapbin_path = '/home/abishara/sources/canu/Linux-amd64/bin/ovStoreDump'
 
 class AssembleOLCStep(StepChunk):
 
@@ -24,7 +22,7 @@ class AssembleOLCStep(StepChunk):
 
   def outpaths(self, final=False):
     paths = {}
-    paths['shit'] = 'shit'
+    #paths['shit'] = 'shit'
     return paths
 
   def __init__(
@@ -101,10 +99,9 @@ class AssembleOLCStep(StepChunk):
     assert is_valid_fasta(mergedfiltfa_path), "merge FASTA not valid"
 
     canu0_path = os.path.join(self.outdir, 'canu-asm-1.seeds.retry')
-#-assemble \
     cmd = \
 '{} \
-useGrid=1  \
+useGrid=0  \
 gridOptions="-p owners" \
 errorRate=0.06  \
 genomeSize=45.00m  \
@@ -119,8 +116,8 @@ oeaMemory=12 cnsMemory=32 batMemory=50 \
       mergedfiltfa_path
     )
     print 'cmd', cmd
-    subprocess.check_call(cmd, shell=True)
-    die
+    #subprocess.check_call(cmd, shell=True)
+    #die
 
     # index assembled contigs 
     self.logger.log('index canu assembled contigs')
