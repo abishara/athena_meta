@@ -8,7 +8,7 @@ from .step import StepChunk
 from ..mlib import util
 
 # NOTE must be in path
-canubin_path = '/home/abishara/sources/canu/Linux-amd64/bin/canu'
+canubin_path = 'canu'
 
 class AssembleOLCStep(StepChunk):
 
@@ -22,7 +22,7 @@ class AssembleOLCStep(StepChunk):
 
   def outpaths(self, final=False):
     paths = {}
-    #paths['shit'] = 'shit'
+    paths['athena.asm.fa'] = os.path.join(self.outdir, 'athena.asm.fa')
     return paths
 
   def __init__(
@@ -44,7 +44,7 @@ class AssembleOLCStep(StepChunk):
     premergedfa_path = os.path.join(self.outdir, 'pre-canu-input-contigs.fa')
     premergedfiltfa_path = os.path.join(self.outdir, 'pre-canu-input-contigs.filt.fa')
     seedsfa_path = os.path.join(self.outdir, 'seed-contigs.fa')
-    mergedfiltfa_path = os.path.join(self.outdir, 'canu-input-contigs.filt.fa')
+    mergedfiltfa_path = os.path.join(self.outdir, 'canu-input-contigs.fa')
 
     # load all the bins
     bins = util.load_pickle(self.options.bins_pickle_path)
@@ -61,10 +61,9 @@ class AssembleOLCStep(StepChunk):
       else:
         input_paths.append(fa_path)
 
-    # FIXME uncomment
-    util.concat_files(input_paths, premergedfa_path)
+    if not os.path.isfile(premergedfa_path):
+      util.concat_files(input_paths, premergedfa_path)
     assert is_valid_fasta(premergedfa_path), "merge FASTA not valid"
-    #die
 
     mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
     cmd = 'bwa mem -t 8 {} {} | samtools view -bS - | samtools sort -o {} - '.format(
@@ -72,9 +71,12 @@ class AssembleOLCStep(StepChunk):
       premergedfa_path,
       mergedbam_path,
     )
-    subprocess.check_call(cmd, shell=True)
-    cmd = 'samtools index {}'.format(mergedbam_path)
-    subprocess.check_call(cmd, shell=True)
+    if not os.path.isfile(mergedbam_path):
+      print 'cmd', cmd
+      subprocess.check_call(cmd, shell=True)
+      cmd = 'samtools index {}'.format(mergedbam_path)
+      print 'cmd', cmd
+      subprocess.check_call(cmd, shell=True)
 
     filter_inputs(
       mergedbam_path,
@@ -92,13 +94,14 @@ class AssembleOLCStep(StepChunk):
           fout.write('>{}.{}\n'.format(ctg, i))
           fout.write(str(seq) + '\n')
 
-    util.concat_files(
-      [premergedfiltfa_path, seedsfa_path], 
-      mergedfiltfa_path,
-    )
+    if not os.path.isfile(mergedfiltfa_path):
+      util.concat_files(
+        [premergedfiltfa_path, seedsfa_path], 
+        mergedfiltfa_path,
+      )
     assert is_valid_fasta(mergedfiltfa_path), "merge FASTA not valid"
 
-    canu0_path = os.path.join(self.outdir, 'canu-asm-1.seeds.retry')
+    canu0_path = os.path.join(self.outdir, 'canu-asm-1')
     cmd = \
 '{} \
 useGrid=0  \
@@ -115,87 +118,61 @@ oeaMemory=12 cnsMemory=32 batMemory=50 \
       canu0_path,
       mergedfiltfa_path
     )
-    print 'cmd', cmd
-    #subprocess.check_call(cmd, shell=True)
-    #die
+    canu_contigs_path = os.path.join(canu0_path, 'canu.contigs.fasta')
+    if not os.path.isfile(canu_contigs_path):
+      print 'launching OLC assembly'
+      print 'cmd', cmd
+      subprocess.check_call(cmd, shell=True)
 
     # index assembled contigs 
     self.logger.log('index canu assembled contigs')
-    with util.cd(canu0_path):
-      #pass
-      cmd = 'bwa index canu.contigs.fasta'
-      subprocess.check_call(cmd, shell=True)
-
-    # align idba0 contigs to canu contigs
-    canu_contigs_path = os.path.join(canu0_path, 'canu.contigs.fasta')
+    cmd = 'bwa index {}'.format(canu_contigs_path)
+    subprocess.check_call(cmd, shell=True)
 
     # align init contigs to canu contigs
     self.logger.log('aligning seed contigs to olc contigs')
-    idba0fa_path = self.options.ctgfasta_path
-    outsam_path = os.path.join(self.outdir, 'align.on-contig.sam')
-    cmd = 'bwa mem -t 4 {} {} > {}'.format(
+    inputfa_path = self.options.ctgfasta_path
+    aligninputsbam_path = os.path.join(self.outdir, 'align-input-contigs.canu-contigs.bam')
+    cmd = 'bwa mem -t 8 {} {} | samtools view -bS - | samtools sort -o {} -'.format(
       canu_contigs_path,
-      idba0fa_path,
-      outsam_path,
+      inputfa_path,
+      aligninputsbam_path,
     )
     print 'cmd', cmd
     subprocess.check_call(cmd, shell=True)
-    with util.cd(self.outdir):
-      print 'cmd', cmd
-      cmd = 'cat align.on-contig.sam | samtools view -bS - | samtools sort -o align.on-contig.bam -'
-      subprocess.check_call(cmd, shell=True)
-      print 'cmd', cmd
-      cmd = 'samtools index align.on-contig.bam'
-      subprocess.check_call(cmd, shell=True)
+    cmd = 'samtools index {}'.format(aligninputsbam_path)
+    print 'cmd', cmd
+    subprocess.check_call(cmd, shell=True)
 
     seeds = set() 
     bins = util.load_pickle(self.options.bins_pickle_path)
     for _, _seeds in bins:
       seeds |= set(_seeds)
 
-    idba_fasta = pysam.FastaFile(idba0fa_path)
-    self.logger.log('determine unmapped contigs out of {} idba0 contigs'.format(
-      idba_fasta.nreferences))
+    input_fasta = pysam.FastaFile(inputfa_path)
+    self.logger.log('determine unmapped contigs out of {} input contigs'.format(
+      input_fasta.nreferences))
 
-    unmap_idba0_ctgs = get_unmapped_ctgs(
-      idba0fa_path,
-      os.path.join(self.outdir, 'align.on-contig.bam'))
-    self.logger.log('  - {} unmapped'.format(len(unmap_idba0_ctgs)))
+    unmap_input_ctgs = get_unmapped_ctgs(
+      inputfa_path,
+      aligninputsbam_path,
+    )
+    self.logger.log('  - {} unmapped'.format(len(unmap_input_ctgs)))
     self.logger.log('  - {}/{} seeds unmapped'.format(
-      len(unmap_idba0_ctgs & seeds),
+      len(unmap_input_ctgs & seeds),
       len(seeds),
     ))
-
-    idba0_unmapfa_path = os.path.join(self.outdir, 'idba0.unmap.fa')
-    idba0_unmapseedsfa_path = os.path.join(self.outdir, 'idba0.unmap.seeds.fa')
-
-
-    with open(idba0_unmapfa_path, 'w') as fout1, \
-         open(idba0_unmapseedsfa_path, 'w') as fout2:
-      for ctg in unmap_idba0_ctgs:
-        seq = str(idba_fasta.fetch(ctg).upper())
-        fout1.write('>{}\n'.format(ctg))
-        fout1.write('{}\n'.format(seq))
-        if ctg in seeds:
-          fout2.write('>{}\n'.format(ctg))
-          fout2.write('{}\n'.format(seq))
-
-    idba0_seedsfa_path = os.path.join(self.outdir, 'idba.seeds.fa')
-    with open(idba0_seedsfa_path, 'w') as fout:
-      for ctg in seeds:
-        seq = str(idba_fasta.fetch(ctg).upper())
+    input_unmapfa_path = os.path.join(self.outdir, 'input.unmap.fa')
+    with open(input_unmapfa_path, 'w') as fout:
+      for ctg in unmap_input_ctgs:
+        seq = str(input_fasta.fetch(ctg).upper())
         fout.write('>{}\n'.format(ctg))
         fout.write('{}\n'.format(seq))
 
-    final_fa_path = os.path.join(self.outdir, 'final.asm.fa')
-    final_fa2_path = os.path.join(self.outdir, 'final.asm2.fa')
+    final_fa_path = os.path.join(self.outdir, 'athena.asm.fa')
     util.concat_files(
-      [idba0_unmapfa_path, canu_contigs_path],
+      [input_unmapfa_path, canu_contigs_path],
       final_fa_path,
-    )
-    util.concat_files(
-      [idba0_unmapseedsfa_path, canu_contigs_path],
-      final_fa2_path,
     )
 
     self.logger.log('done')
@@ -254,6 +231,4 @@ def is_valid_fasta(fa_path):
         return False
 
   return True
-
-
 

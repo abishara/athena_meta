@@ -1,10 +1,44 @@
 import os
 import sys
 import pysam
+import subprocess
 from itertools import chain, tee, izip
 import gzip
 import cPickle as pickle
 from collections import defaultdict, Counter, namedtuple
+
+#--------------------------------------------------------------------------
+# prereqs
+#--------------------------------------------------------------------------
+def check_prereqs():
+  # canu
+  try:
+    output = subprocess.check_output('canu --version', shell=True)
+    if output.startswith('Canu'):
+      vr,vp = output.split()[1][1:].split('.')
+      vr,vp = int(vr),int(vp)
+      if vr != 1 and vp < 3:
+        print 'Canu version must be 1.3+'
+        assert False, "version not up to date"
+  except:
+    print 'Canu not installed properly'
+    sys.exit(1)
+
+  # bwa
+  # cannot invoke with no args without non-zero exit status
+
+  # samtools
+  try:
+    output = subprocess.check_output('samtools --version', shell=True)
+    vr,vp,vs = map(int, output.split('\n')[0].split()[1].split('.'))
+    if vr != 1 and vp < 3:
+      print 'samtools version must be 1.3+'
+  except:
+    print 'samtools not install properly'
+    sys.exit(1)
+
+  # idba_ud
+  # cannot invoke with no args without non-zero exit status
 
 #--------------------------------------------------------------------------
 # os

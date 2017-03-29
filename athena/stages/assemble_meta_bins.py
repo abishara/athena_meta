@@ -17,6 +17,7 @@ class AssembleMetaBinnedStep(StepChunk):
 
   @staticmethod
   def get_steps(options):
+    util.check_prereqs()
     bins = util.load_pickle(options.bins_pickle_path)
     
     for i, (binid, seeds) in enumerate(bins):

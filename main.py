@@ -16,24 +16,24 @@ from athena.stages import assemble_olc
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
 def run(options):
-    """
-    1. create output directories
-    2. collect args for each stage
-    3. check which stages need to run
-    4. iterate through stages and submit jobs
-    5. validate that we're done running
-    """
-
-    util.mkdir_p(options.output_dir)
-    util.mkdir_p(options.results_dir)
-    util.mkdir_p(options.working_dir)
-    util.mkdir_p(options.log_dir)
-
-    stages = get_stages(options)
-    runner = pipeline.Runner(options)
-
-    for stage_name, stage in stages.items():
-        runner.run_stage(stage, stage_name)
+  """
+  1. create output directories
+  2. collect args for each stage
+  3. check which stages need to run
+  4. iterate through stages and submit jobs
+  5. validate that we're done running
+  """
+  
+  util.mkdir_p(options.output_dir)
+  util.mkdir_p(options.results_dir)
+  util.mkdir_p(options.working_dir)
+  util.mkdir_p(options.log_dir)
+  
+  stages = get_stages(options)
+  runner = pipeline.Runner(options)
+  
+  for stage_name, stage in stages.items():
+    runner.run_stage(stage, stage_name)
 
 def clean(options):
   stages = get_stages(options)
@@ -42,17 +42,17 @@ def clean(options):
     stage.clean_all_steps(options)
 
 def get_stages(options):
-    stages = collections.OrderedDict()
-
-    if options.pipe_type == 'meta-asm':
-      stages["bin_reads"] = bin_meta_reads.BinMetaReadsStep
-      stages["index_reads"] = index_reads.IndexReadsStep
-      stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
-      stages["assemble_olc"] = assemble_olc.AssembleOLCStep
-    else:
-      raise Exception("Pipeline not implemented yet")
-
-    return stages
+  stages = collections.OrderedDict()
+  
+  if options.pipe_type == 'meta-asm':
+    stages["bin_reads"] = bin_meta_reads.BinMetaReadsStep
+    stages["index_reads"] = index_reads.IndexReadsStep
+    stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
+    stages["assemble_olc"] = assemble_olc.AssembleOLCStep
+  else:
+    raise Exception("Pipeline not implemented yet")
+  
+  return stages
 
 def clean_up():
   junk = filter(
@@ -67,14 +67,14 @@ def clean_up():
   )
   map(lambda(f): os.remove(f), junk)
 
-def main(argv):
+def main():
   """
   1. process command-line arguments
   3. run
   """
-
+  argv = sys.argv
   help_str = '''
-  usage: athena_meta.py <path/to/config.json> [pipeline]
+  usage: athena-meta <path/to/config.json> [pipeline]
 
   NOTE: dirname(config.json) specifies root output directory
   '''
@@ -88,7 +88,6 @@ def main(argv):
     pipe_type = argv[2]
     if pipe_type not in [
       'meta-asm',
-      'meta-hap',
     ]:
       print >> sys.stderr, 'error: incorrect pipeline specified'
       sys.exit(2)
@@ -105,5 +104,5 @@ def main(argv):
   clean_up()
 
 if __name__ == '__main__':
-  main(sys.argv)
+  main()
 

@@ -8,11 +8,8 @@ setup(
   packages = filter(lambda x: x.find('athena') == 0, find_packages()),
   py_modules = ['main'],
   entry_points = {
-    'console_scripts': [
-      'main = main:main',
-    ]
+    'console_scripts': [ 'athena-meta = main:main' ]
   },
-
   install_requires=[
     'bx-python>=0.7.3',
     'ipython-cluster-helper>=0.5.2',
