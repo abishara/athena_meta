@@ -34,4 +34,10 @@ RUN wget https://github.com/marbl/canu/archive/v1.3.tar.gz \
 
 RUN pip install -U pip
 
-CMD bash
+RUN mkdir athena_meta_src && cd athena_meta_src \
+     && wget https://github.com/abishara/athena_meta/archive/1.0.tar.gz -O athena_meta.tar.gz \
+     && tar -xf athena_meta.tar.gz --strip-components 1 \
+     && pip install -r requirements.txt \
+     && pip install -vvv .
+  
+CMD athena-meta
