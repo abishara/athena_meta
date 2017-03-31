@@ -7,8 +7,11 @@ Athena is a read cloud assembler for metagenomes.
 Installation
 ============
 
-Prerequisites: the following programs must be installed prior to running
-Athena:
+To run Athena through a Docker image with Athena and its prerequisities
+already installed, please skip to section Docker (and example dataset).
+
+To install Athena in your native environment, the following prerequisites
+must be installed:
 
 * `idba_ud <https://github.com/grocsvs/idba/releases/tag/1.1.3g1>`_ -- please use this version, as the version distributed by the original author does not support paired reads longer than 128 bp
 * `samtools and htslib <http://www.htslib.org/download/>`_ -- version 1.3 or later of ``samtools`` must all be in your ``$PATH``
