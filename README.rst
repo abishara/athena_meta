@@ -1,7 +1,7 @@
 Athena
 --------
 
-Athena is a read cloud assembler for metagnomes.
+Athena is a read cloud assembler for metagenomes.
 
 
 Installation
@@ -43,10 +43,8 @@ Running Athena
 
 Overview:
 
-1. Generate input seed contigs for Athena with Spades/idba_ud.  Align
-barcoded input reads to seed contigs with BWA.
-2. Setup a ``config.json`` file, which specifies inputs to Athena and your
-compute (eg cluster) setup
+1. Generate input seed contigs for Athena with Spades/idba_ud.  Align barcoded input reads to seed contigs with BWA.
+2. Setup a ``config.json`` file, which specifies inputs to Athena and your compute (eg cluster) setup
 3. Run Athena
 
 
@@ -94,9 +92,8 @@ See the examples directory for an example ``config.json`` file.
 
 The configuration file is in the `JSON <http://www.json.org>`_ format, and contains the following three parts:
 
-1. input barcoded reads (FASTQ).  Must be uncompressed interleaved paired
-end reads, which specify barcodes with the BC tag as specified above.
-2. input seed contigs (FASTA).  Must be a path to a BWA built index
+1. input barcoded reads (FASTQ).  Must be uncompressed interleaved paired end reads, which specify barcodes with the BC tag as specified above.
+2. input seed contigs (FASTA).  Must be a path to a BWA built index.
 3. BWA alignments of barcoded input reads to input seeds (BAM)
 4. compute cluster settings
 
@@ -185,7 +182,7 @@ you downloaded and extracted readclouds-meta-asm-example.tar.gz):
 
 .. code-block:: bash
 
-    docker run -v `pwd`:/data -w /data/readclouds-meta-asm-example abishara/athena-meta config.json
+    docker run -v `pwd`:/data -w /data/readclouds-meta-asm-example abishara/athena-meta-docker athena-meta config.json
 
 This requires ~2GB of memory to run and will take ~ hour to complete. If
 you are running docker for Mac, please make sure that your virtual machine
