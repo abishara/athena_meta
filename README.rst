@@ -187,9 +187,10 @@ you downloaded and extracted readclouds-meta-asm-example.tar.gz):
 
     docker run -v `pwd`:/data -w /data/readclouds-meta-asm-example abishara/athena-meta-docker athena-meta config.json
 
-This requires ~2GB of memory to run and will take ~ hour to complete. If
-you are running docker for Mac, please make sure that your virtual machine
-has access to at least 16GB of memory.
+This requires ~16GB of memory to run (for OLC assembly) and will take ~20
+minutes to complete. If you are running docker for Mac, please make sure
+that your docker client has access to at least 16GB of memory (you may
+need to set in Preferences).
 
 The output can be found in native host directory of
 ``readclouds-meta-asm-example``.
