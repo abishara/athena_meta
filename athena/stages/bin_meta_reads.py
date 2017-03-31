@@ -4,7 +4,6 @@ import shutil
 from bx.intervals.cluster import ClusterTree
 from collections import defaultdict, Counter
 import numpy as np
-import networkx as nx
 from itertools import groupby, combinations
 import random
 
