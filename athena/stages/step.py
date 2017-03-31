@@ -44,6 +44,10 @@ class StepChunk(object):
   @property
   def log_path(self):
     return os.path.join(self.options.log_dir, str(self))
+
+  @staticmethod
+  def deliver_message(options):
+    return None
   
   def start_logging(self):
     self.logger = log.Logger(self.log_path)
@@ -55,7 +59,6 @@ class StepChunk(object):
     self.logger.log("-> finished running step; time elapsed: {}".format(datetime.timedelta(seconds=elapsed)))
     self.logger.log("--stopping logging--")
       
-  
   @classmethod
   def clean_all_steps(cls, options):
     for chunk in cls.get_steps(options):

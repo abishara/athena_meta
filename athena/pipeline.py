@@ -36,6 +36,8 @@ class Runner(object):
     else:
       logging.info("--> 0 chunks need to be run. Skipping...\n")
 
+    if stage.deliver_message(self.options):
+      logging.info(stage.deliver_message(self.options))
 
 def _run_chunk(chunk):
   try:

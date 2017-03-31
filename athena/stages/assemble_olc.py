@@ -14,7 +14,17 @@ class AssembleOLCStep(StepChunk):
 
   @staticmethod
   def get_steps(options):
+    assert os.path.isfile(options.ctgfasta_path+'.sa'), \
+      "ctgfasta_path option in config must reference a BWA index"
     yield AssembleOLCStep(options)
+
+  @staticmethod
+  def deliver_message(options):
+    return "Athena contigs: {}".format(os.path.join(
+      options.results_dir,
+      'olc',
+      'athena.asm.fa',
+    ))
 
   @property
   def outdir(self):
