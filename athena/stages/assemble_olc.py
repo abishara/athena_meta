@@ -114,20 +114,22 @@ class AssembleOLCStep(StepChunk):
     canu0_path = os.path.join(self.outdir, 'canu-asm-1')
     cmd = \
 '{} \
+gnuplotTested=true \
 useGrid=0  \
-gridOptions="-p owners" \
 errorRate=0.06  \
 genomeSize=45.00m  \
 contigFilter="2 2000 1.0 1.0 2" \
 stopOnReadQuality=false \
 -d {} \
 -p canu \
-oeaMemory=12 cnsMemory=32 batMemory=50 \
 -pacbio-corrected {}'.format(
       canubin_path,
       canu0_path,
       mergedfiltfa_path
     )
+# stale unused canu flags
+#gridOptions="-p owners" \
+#oeaMemory=12 cnsMemory=32 batMemory=50 \
     canu_contigs_path = os.path.join(canu0_path, 'canu.contigs.fasta')
     if not os.path.isfile(canu_contigs_path):
       print 'launching OLC assembly'
