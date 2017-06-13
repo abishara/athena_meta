@@ -74,29 +74,31 @@ def main():
   """
   argv = sys.argv
   help_str = '''
-  usage: athena-meta <path/to/config.json> [pipeline]
+  usage: athena-meta <path/to/config.json>
 
   NOTE: dirname(config.json) specifies root output directory
   '''
-  if len(argv) != 2 and len(argv) != 3:
+  if len(argv) != 2:
     print help_str
     sys.exit(1)
 
   config_path = argv[1]
-  pipe_type = 'meta-asm'
-  if len(argv) == 3:
-    pipe_type = argv[2]
-    if pipe_type not in [
-      'meta-asm',
-    ]:
-      print >> sys.stderr, 'error: incorrect pipeline specified'
-      sys.exit(2)
+  if not os.path.isfile(config_path):
+    print >> sys.stderr, "must specify valid config_path"
+    print >> sys.stderr, help_str
+    sys.exit(1)
 
   # load config json
   options_cls = {
     'meta-asm': MetaAsmOptions,
-  }[pipe_type]
-  options = options_cls.deserialize(config_path)
+  }['meta-asm']
+  try:
+    options = options_cls.deserialize(config_path)
+  except Exception as e:
+    print >> sys.stderr, "{} invalid JSON config file, Exception:".format(config_path)
+    print >> sys.stderr, str(e)
+    print >> sys.stderr, help_str
+    sys.exit(2)
 
   #clean(options)
   run(options)

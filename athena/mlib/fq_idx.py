@@ -69,6 +69,9 @@ class FastqIndex(object):
         util.fastq_iter(f),
         lambda(x): x[0],
       ):
+        # skip reads without a barcode
+        if bcode == None:
+          continue
         assert bcode not in seen_set, \
 "fastq {} NOT in barcode sorted order. Ensure reads that share barcodes \
 are in a block together".format(self.fq_path)
@@ -80,17 +83,19 @@ are in a block together".format(self.fq_path)
           txt = ''.join(lines)
           numbytes += len(txt)
 
-    print 'writing index for fqs'
-    for fq_path in [self.fq_path]:
-      print '  -', fq_path
-    util.write_pickle(self.index_path, self._bcode_off_map)
     num_bcodes = len(filter(
       lambda(b): b.endswith('-1'),
       self._bcode_off_map.keys(),
     ))
+    assert num_bcodes > 0, \
+      "no barcodes specified in fastq {}".format(self.fq_path)
     self.logger.log('fqinfo${},{},{}'.format(
       num_pe, len(self._bcode_off_map), num_bcodes,
     ))
+    print 'writing index for fqs'
+    for fq_path in [self.fq_path]:
+      print '  -', fq_path
+    util.write_pickle(self.index_path, self._bcode_off_map)
 
   def __load_index__(self):  
     self._bcode_off_map = util.load_pickle(self.index_path)

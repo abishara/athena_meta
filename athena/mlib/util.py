@@ -112,11 +112,27 @@ def grouped(iterator, n, slop=False):
         yield vals_f
       raise StopIteration
 
+def _get_qname_info(line):
+  def first_last(x): return (x[0], x[-1])
+  elms = line.strip().split()
+  qname = elms[0]
+  info_map = dict(map(
+    lambda(x): first_last(x.split(':')),
+    elms[1:],
+  ))
+  return qname, info_map
+
 def fastq_iter(f):
   for lines in grouped(f, 4):
-    qname, _, bcode = lines[0].strip().split('\t')[:3]
+    qname, info_map = _get_qname_info(lines[0])
     qname = qname[1:]
-    bcode = bcode.split(':')[-1]
+    assert not ('BC' in info_map and 'BX' in info_map), \
+      'fastq can only either BX or BC tag!'
+    bcode = None
+    if 'BX' in info_map:
+      bcode = info_map['BX']
+    elif 'BC' in info_map:
+      bcode = info_map['BC']
     yield bcode, qname, lines
   raise StopIteration
 
@@ -129,10 +145,13 @@ def get_fasta_sizes(fa_path):
   return ctg_size_map
 
 def get_barcode(read):
-  filt_list = filter(lambda(k, v): k == 'BC', read.tags)
+  filt_list = filter(lambda(k, v): k in ['BC', 'BX'], read.tags)
   if filt_list == []: 
     return None
   else:
+    keys = set(map(lambda(k,v): k, filt_list))
+    assert not ('BC' in keys and 'BX' in keys), \
+      'bam can only specify either BX or BC tag!'
     k, v = filt_list[0]
     return v
   

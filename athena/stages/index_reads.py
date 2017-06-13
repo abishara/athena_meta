@@ -15,8 +15,11 @@ class IndexReadsStep(StepChunk):
   def get_steps(options):
     # strip over fastqs to load all fq fragments
     rootfq_path = options.input_fqs
+    found = False
     for fq_path in glob.glob(options.input_fqs):
+      found = True
       yield IndexReadsStep(options, fq_path)
+    assert found, "fastqs {} not found".format(options.input_fqs)
 
   def outpaths(self, final=False):
     paths = {}
@@ -59,6 +62,7 @@ class IndexReadsStep(StepChunk):
     ##os.system(cmd)
 
     self.logger.log('index fastq {}'.format(self.nfq_path))
+
     with FastqIndex(self.nfq_path, self.logger) as idx:
       pass
     passfile_path = os.path.join(self.outdir, 'pass')
