@@ -46,14 +46,14 @@ class BinMetaReadsStep(StepChunk):
       lambda(qname): ctg_size_map[qname] >= MIN_SEED_SIZE,
       seeds,
     )
-    self.logger.log('  {} idba0 contigs >= {}bp'.format(
+    self.logger.log('  {} input seed contigs >= {}bp'.format(
       len(seeds),
       MIN_SEED_SIZE,
     ))
     return seeds
 
   def run(self):
-    self.logger.log('get seed contigs from idba0')
+    self.logger.log('get seed contigs from input assembly')
 
     seeds = [] 
     seeds = self.get_seeds()

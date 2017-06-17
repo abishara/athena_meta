@@ -69,14 +69,11 @@ class FastqIndex(object):
         util.fastq_iter(f),
         lambda(x): x[0],
       ):
-        # skip reads without a barcode
-        if bcode == None:
-          continue
-        assert bcode not in seen_set, \
+        assert bcode == None or bcode not in seen_set, \
 "fastq {} NOT in barcode sorted order. Ensure reads that share barcodes \
 are in a block together".format(self.fq_path)
         seen_set.add(bcode)
-        if bcode not in self._bcode_off_map:
+        if bcode != None and bcode not in self._bcode_off_map:
           self._bcode_off_map[bcode] = numbytes
         for _, qname, lines in reads_iter:
           num_pe += 1
