@@ -1,4 +1,4 @@
 bx-python==0.7.3
 ipython-cluster-helper==0.5.2
 numpy==1.11.0
-pysam==0.9.0
+pysam==0.9.1
