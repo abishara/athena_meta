@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import pysam
 import subprocess
 from itertools import chain, tee, izip
