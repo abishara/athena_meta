@@ -36,7 +36,11 @@ def check_prereqs():
   # samtools
   try:
     output = subprocess.check_output('samtools --version', shell=True)
-    vr,vp,vs = map(int, output.split('\n')[0].split()[1].split('.'))
+    vre = re.compile(r"samtools\s+(\d+).(\d+)")
+    vr,vp = map(int, vre.search(output).groups())
+    if None in [vr, vp]:
+      print 'version cannot be parsed from --version'
+      assert False
     if vr != 1 and vp < 3:
       print 'samtools version must be 1.3+'
   except:
