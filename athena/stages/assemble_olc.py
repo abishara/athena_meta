@@ -68,6 +68,8 @@ class AssembleOLCStep(StepChunk):
       fa_path = os.path.join(bindir_path, 'local-asm-merged.fa')
       if not os.path.isfile(fa_path):
         self.logger.log(' not found, skipping {}'.format(fa_path))
+      elif not is_valid_fasta(fa_path):
+        self.logger.log('WARNING input fasta not valid: {}'.format(fa_path))
       else:
         input_paths.append(fa_path)
 
