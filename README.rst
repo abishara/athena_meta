@@ -13,7 +13,11 @@ already installed, please skip to section Docker (and example dataset).
 To install Athena in your native environment, the following prerequisites
 must be installed:
 
-* `idba_ud <https://github.com/grocsvs/idba/releases/tag/1.1.3g1>`_ -- please use this version, as the version distributed by the original author does not support paired reads longer than 128 bp
+* `idba_ud <https://github.com/abishara/idba/releases/tag/1.1.3a1>`_ --
+please use **this** version, which is modified both to handle longer
+short-read lengths and to locally assemble subsampled barcoded reads
+clouds.  Ensure all compiled binaries, including ``idba_subasm``, are in
+your ``$PATH``
 * `samtools and htslib <http://www.htslib.org/download/>`_ -- version 1.3 or later of ``samtools`` must all be in your ``$PATH``
 * `bwa-mem <https://github.com/lh3/bwa/releases>`_
 * `canu <https://github.com/marbl/canu>`_ -- version 1.3 or later
@@ -208,8 +212,8 @@ If an error arises, the output from ``athena-meta`` or the log files may
 be informative.
 
 **ShortSequence: Sequence is too long.** If you get this error during
-assembly, please make sure you are using `the grocsvs fork of idba_ud
-<https://github.com/grocsvs/idba/releases/tag/1.1.3g1>`_.
+assembly, please make sure you are using `the right fork of idba_ud
+<https://github.com/abishara/idba/releases/tag/1.1.3a1>`_.
 
 Please submit issues on the `github page for Athena
 <https://github.com/abishara/athena_meta/issues>`_.
