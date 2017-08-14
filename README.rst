@@ -13,11 +13,7 @@ already installed, please skip to section Docker (and example dataset).
 To install Athena in your native environment, the following prerequisites
 must be installed:
 
-* `idba_ud <https://github.com/abishara/idba/releases/tag/1.1.3a1>`_ --
-please use **this** version, which is modified both to handle longer
-short-read lengths and to locally assemble subsampled barcoded reads
-clouds.  Ensure all compiled binaries, including ``idba_subasm``, are in
-your ``$PATH``
+* `idba_ud <https://github.com/abishara/idba/releases/tag/1.1.3a1>`_ -- please use **this** version, which is modified both to handle longer short-read lengths and to locally assemble subsampled barcoded reads clouds.  Ensure all compiled binaries, including ``idba_subasm``, are in your ``$PATH``
 * `samtools and htslib <http://www.htslib.org/download/>`_ -- version 1.3 or later of ``samtools`` must all be in your ``$PATH``
 * `bwa-mem <https://github.com/lh3/bwa/releases>`_
 * `canu <https://github.com/marbl/canu>`_ -- version 1.3 or later
