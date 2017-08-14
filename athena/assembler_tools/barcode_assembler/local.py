@@ -11,7 +11,7 @@ from athena.mlib import util
 from athena.mlib.fq_idx import FastqIndex
 
 # NOTE must be in path
-idbabin_path = 'idba_ud'
+idbabin_path = 'idba_subasm'
 
 SEED_SELF_ASM_SIZE = 10000
 
@@ -90,13 +90,28 @@ class LocalAssembler(object):
     self.logger.log('  - {}x estimated local coverage'.format(local_asm.local_asm_cov))
 
     lrhintsfa_path = os.path.join(self.fqdir_path, 'lr-hints.{}.fa'.format(local_asm.uid))
-    readsfa_path = os.path.join(self.fqdir_path, 'reads.{}.fa'.format(local_asm.uid))
+    seedsfa_path = os.path.join(self.fqdir_path, 'seeds.{}.fa'.format(local_asm.uid))
+    readsfa_path = os.path.join(self.fqdir_path, 'reads.{}.ds.fa'.format(local_asm.uid))
     asmdir_path = os.path.join(self.asmrootdir_path, 'local-asm.{}'.format(local_asm.uid))
+    fullreadsfa_path = os.path.join(self.fqdir_path, 'reads.{}.full.fa'.format(local_asm.uid))
+    seed_info_path = os.path.join(self.asmrootdir_path, 'seeds-{}.txt'.format(local_asm.uid))
+    
+    with open(seed_info_path, 'w') as fout:
+      fout.write(local_asm.root_ctg)
+      if local_asm.root_pos != None:
+        fout.write('\t'+str(local_asm.root_pos[0]))
+      else:
+        fout.write('\troot-asm')
+      fout.write('\n')
+      if local_asm.link_ctg == None:
+        fout.write('no link-ctg\n')
+      else:
+        fout.write('{}\t{}\n'.format(local_asm.link_ctg, local_asm.link_pos[0]))
 
     # minimum required support based on estimated local_cov
     # NOTE do not allow anything to assemble with less than half of
     # min_support
-    min_support = max(2, int(local_asm.local_asm_cov / 3))
+    min_support = max(2, int(local_asm.local_asm_cov / 10))
     self.logger.log('  - {} min_support required'.format(min_support))
 
     # filter input reads
@@ -105,6 +120,13 @@ class LocalAssembler(object):
       readsfa_path,
       local_asm.ds_bcode_set,
     )
+    ## FIXME remove
+    ## for now dump the non downsampled bcoded reads as well for debug
+    #get_bcode_reads(
+    #  self.tenxfq_paths,
+    #  fullreadsfa_path,
+    #  local_asm.bcode_set,
+    #)
     # create long read hints
     hints = [(local_asm.root_ctg, local_asm.root_pos)]
     if local_asm.link_ctg:
@@ -113,15 +135,16 @@ class LocalAssembler(object):
       hints,
       self.ctgfasta_path,
       lrhintsfa_path,
+      seedsfa_path,
       multiplicity=max(10, min_support+2),
     )
 
-    #cmd = '{} -r {} -l {} -o {}'.format(
-    cmd = '{} --min_support {} --maxk 80 -r {} -l {} -o {}'.format(
+    cmd = '{} --min_support {} -r {} -l {} --seed_contig {} -o {}'.format(
       idbabin_path,
       min_support,
       readsfa_path,
       lrhintsfa_path,
+      seedsfa_path,
       asmdir_path,
     )
     #cmd = '{} --maxk 80 -r {} -l {} -o {}'.format(
@@ -329,27 +352,42 @@ class LocalAssembler(object):
       if link_ctg == self.root_ctg:
         continue
       assert link_ctg_counts[link_ctg] >= 3
-      link_bcode_counts = link_ctg_bcode_counts[link_ctg]
-      i_bcode_set = link_ctg_bcodes[link_ctg] & root_bcode_set
-      ds_bcode_set = i_bcode_set
-      # downsample to barcodes with the most reads
-      if len(i_bcode_set) > 400:
-        ds_bcode_set = set(sorted(
-          i_bcode_set,
-          reverse=True,
-          key=lambda(b): root_bcode_counts[b] + link_bcode_counts[b],
-        )[:400])
+      root_size = self.ctg_size_map[self.root_ctg]
+      link_size = self.ctg_size_map[link_ctg]
+
+      # refetch barcodes from locally linked region
+      root_pos, is_rev = root_link_ctg_pos[link_ctg]
+      if is_rev:
+        rb, re = root_pos, min(root_pos + SEED_SELF_ASM_SIZE, root_size)
+        _root_target_size = min(root_size - root_pos, SEED_SELF_ASM_SIZE)
+      else:
+        rb, re = max(0, root_pos - SEED_SELF_ASM_SIZE), root_pos
+        _root_target_size = min(root_pos, SEED_SELF_ASM_SIZE)
+
+      link_pos, is_rev = link_ctg_pos_map[link_ctg][self.root_ctg]
+      if is_rev:
+        lb, le = link_pos, min(link_pos + SEED_SELF_ASM_SIZE, link_size)
+        _link_target_size = min(link_size - link_pos, SEED_SELF_ASM_SIZE)
+      else:
+        lb, le = max(0, link_pos - SEED_SELF_ASM_SIZE), link_pos
+        _link_target_size = min(link_pos, SEED_SELF_ASM_SIZE)
+
+      (_root_bcode_set, _root_bcode_counts, _, _, _,) = \
+        get_ctg_links(self.root_ctg, rb, re)
+      (_link_bcode_set, _link_bcode_counts, _, _, _,) = \
+        get_ctg_links(link_ctg, lb, le)
+
+      i_bcode_set = _link_bcode_set & _root_bcode_set
+      ds_bcode_set, ds_num_reads = downsample_link_subassembly(
+        _root_bcode_counts,
+        _root_target_size,
+        _link_bcode_counts,
+        _link_target_size,
+        read_size,
+      )
 
       # estimate coverage of the barcodes for this local assembly
-      ctgs_size = (
-        self.ctg_size_map[self.root_ctg] + 
-        self.ctg_size_map[link_ctg]
-      )
-      num_reads = sum(map(
-        lambda(b): root_bcode_counts[b] + link_bcode_counts[b],
-        ds_bcode_set,
-      ))
-      local_asm_cov = 1. * num_reads * read_size / ctgs_size
+      local_asm_cov = 1. * ds_num_reads * read_size / (_root_target_size + _link_target_size)
 
       # must be recipricol link
       assert self.root_ctg in link_ctg_pos_map[link_ctg], \
@@ -370,12 +408,6 @@ class LocalAssembler(object):
         )
       )
 
-    def downsample(bcodes):
-      if len(bcodes) > 400:
-        return set(random.sample(root_bcode_set, 400))
-      else:
-        return set(bcodes)
-  
     # truncate for a max of 50 local assemblies
     num_orig_asms = len(local_asms)
     truncate_asms = (num_orig_asms > 50)
@@ -385,37 +417,7 @@ class LocalAssembler(object):
       reverse=True,
     )[:50]
 
-    ## dump debug of local assemblies
-    #debug_path = os.path.join(self.debugdir_path, 'debug-links.bam')
-    #self.logger.log('dumping debug bam')
-    #debug_fhandle = pysam.Samfile(debug_path, 'wb', template=fhandle)
-    #debug_ctgs = [self.root_ctg]
-    #debug_ctgs.extend(map(
-    #  lambda(l): l.link_ctg,
-    #  sorted(
-    #    local_asms,
-    #    key=lambda(l): len(l.bcode_set),
-    #    reverse=True,
-    #  )[:30],
-    #))
-    #debug_ctg_set = set(debug_ctgs)
-    #for ctg in debug_ctgs:
-    #  for read in fhandle.fetch(ctg):
-    #    tid  = read.reference_id
-    #    ntid = read.next_reference_id
-    #    is_link = (-1 not in [tid, ntid] and tid != ntid)
-    #    if is_link:
-    #      _ctg = fhandle.getrname(tid)
-    #      _nctg = fhandle.getrname(ntid)
-    #      if (
-    #        set([_ctg, _nctg]).issubset(debug_ctg_set) and
-    #        self.root_ctg in [_ctg, _nctg]
-    #      ):
-    #        debug_fhandle.write(read)
-    #debug_fhandle.close()
-         
     # do local reassembly of the root contig
-
     # if the contig is >20kb, create a local assembly at each end of the
     # root contig, otherwise just a single local assembly for the root
     root_size = self.ctg_size_map[self.root_ctg]
@@ -425,13 +427,12 @@ class LocalAssembler(object):
       # head
       (head_bcode_set, head_root_bcode_counts, _, _, _,) = \
         get_ctg_links(self.root_ctg, 0, SEED_SELF_ASM_SIZE)
-      ds_bcode_set = downsample(head_bcode_set)
-
-      num_reads = sum(map(
-        lambda(b): head_root_bcode_counts[b],
-        ds_bcode_set,
-      ))
-      local_asm_cov = 1. * num_reads * read_size / SEED_SELF_ASM_SIZE
+      ds_bcode_set, ds_num_reads = downsample_root_subassembly(
+        head_root_bcode_counts,
+        SEED_SELF_ASM_SIZE,
+        read_size,
+      )
+      local_asm_cov = 1. * ds_num_reads * read_size / SEED_SELF_ASM_SIZE
 
       begin_pos = (0, True)
       local_asms.append(
@@ -449,13 +450,12 @@ class LocalAssembler(object):
       # tail
       (tail_bcode_set, tail_root_bcode_counts, _, _, _,) = \
         get_ctg_links(self.root_ctg, root_size - SEED_SELF_ASM_SIZE, root_size)
-      ds_bcode_set = downsample(tail_bcode_set)
-
-      num_reads = sum(map(
-        lambda(b): tail_root_bcode_counts[b],
-        ds_bcode_set,
-      ))
-      local_asm_cov = 1. * num_reads * read_size / SEED_SELF_ASM_SIZE
+      ds_bcode_set, ds_num_reads = downsample_root_subassembly(
+        tail_root_bcode_counts,
+        SEED_SELF_ASM_SIZE,
+        read_size,
+      )
+      local_asm_cov = 1. * ds_num_reads * read_size / SEED_SELF_ASM_SIZE
 
       end_pos = (self.ctg_size_map[self.root_ctg], False)
       local_asms.append(
@@ -471,11 +471,11 @@ class LocalAssembler(object):
         )
       )
     else:
-      ds_bcode_set = downsample(root_bcode_set)
-      num_reads = sum(map(
-        lambda(b): root_bcode_counts[b],
-        ds_bcode_set,
-      ))
+      ds_bcode_set, num_reads = downsample_root_subassembly(
+        root_bcode_counts,
+        root_size,
+        read_size,
+      )
       local_asm_cov = 1. * num_reads * read_size / root_size
       local_asms.append(
         LocalAssembly(
@@ -508,9 +508,11 @@ def get_lrhints_fa(
   ctgs,
   infa_path,
   outfa_path,
+  seedsfa_path,
   multiplicity=10
 ):
-  with open(outfa_path, 'w') as fout:
+  with open(outfa_path, 'w') as fout1, \
+       open(seedsfa_path, 'w') as fout2:
     ctg_fasta = pysam.FastaFile(infa_path)
     for ctg, pos_pre in ctgs:
       seq = str(ctg_fasta.fetch(ctg).upper())
@@ -525,7 +527,8 @@ def get_lrhints_fa(
       if len(seq_sub) < 200:
         continue
       for _ in xrange(multiplicity):
-        fout.write('>{}\n{}\n'.format(ctg, seq_sub))
+        fout1.write('>{}\n{}\n'.format(ctg, seq_sub))
+      fout2.write('>{}\n{}\n'.format(ctg, seq_sub))
 
 def get_bcode_reads(infq_paths, outfa_path, bcode_set):
   seen_set = set()
@@ -542,4 +545,37 @@ def get_bcode_reads(infq_paths, outfa_path, bcode_set):
           seen_set.add(bcode)
   assert seen_set.issubset(bcode_set), 'not all barcodes loaded'
   return
+
+def downsample_link_subassembly(
+  bcode_counts1,
+  target_size1,
+  bcode_counts2,
+  target_size2,
+  read_size,
+):
+  num_reads = 0
+  i_bcodes = set(bcode_counts1.keys()) & set(bcode_counts2.keys())
+  bcode_counts = Counter(
+    {b: bcode_counts1[b] + bcode_counts2[b] for b in i_bcodes}
+  )
+  target_size = target_size1 + target_size2
+  sub_bcodes = set()
+  for bcode, _nr in bcode_counts.most_common():
+    num_reads += _nr
+    if 1. * num_reads * read_size / target_size < 100:
+      sub_bcodes.add(bcode)
+    else:
+      break
+  return sub_bcodes, num_reads
+
+def downsample_root_subassembly(bcode_counts, target_size, read_size):
+  num_reads = 0
+  sub_bcodes = set()
+  for bcode, _nr in bcode_counts.most_common():
+    num_reads += _nr
+    if 1. * num_reads * read_size / target_size < 100:
+      sub_bcodes.add(bcode)
+    else:
+      break
+  return sub_bcodes, num_reads
 

@@ -42,6 +42,14 @@ class BinMetaReadsStep(StepChunk):
   def get_seeds(self):
     ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
     seeds = ctg_size_map.keys()
+    if self.options.cheat_seeds:
+      self.logger.log('using cheat seeds file: {}'.format(self.options.cheat_seeds))
+      seeds = set()
+      with open(self.options.cheat_seeds) as fin:
+        for line in fin:
+          seed = line.strip()
+          seeds.add(seed)
+      self.logger.log('  - loaded {}'.format(len(seeds)))
     seeds = filter(
       lambda(qname): ctg_size_map[qname] >= MIN_SEED_SIZE,
       seeds,

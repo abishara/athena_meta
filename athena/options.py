@@ -126,7 +126,9 @@ class MetaAsmOptions(Options):
   
   @classproperty
   def optional(self):
-    return []
+    return [
+      ('cheat_seeds', None),
+    ]
   
   def __init__(self, options_path, debug=False):
       super(MetaAsmOptions, self).__init__(options_path)

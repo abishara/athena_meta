@@ -132,6 +132,7 @@ stopOnReadQuality=false \
 # stale unused canu flags
 #gridOptions="-p owners" \
 #oeaMemory=12 cnsMemory=32 batMemory=50 \
+    #die
     canu_contigs_path = os.path.join(canu0_path, 'canu.contigs.fasta')
     if not os.path.isfile(canu_contigs_path):
       print 'launching OLC assembly'
