@@ -14,6 +14,10 @@ from athena.mlib.fq_idx import FastqIndex
 idbabin_path = 'idba_subasm'
 
 SEED_SELF_ASM_SIZE = 10000
+DS_SUBASM_COV = 100
+
+SEED_SELF_ASM_SIZE = 4000
+DS_SUBASM_COV = 60
 
 class LocalAssembly(object):
 
@@ -111,7 +115,9 @@ class LocalAssembler(object):
     # minimum required support based on estimated local_cov
     # NOTE do not allow anything to assemble with less than half of
     # min_support
-    min_support = max(2, int(local_asm.local_asm_cov / 10))
+    #min_support = max(2, int(local_asm.local_asm_cov / 10))
+    # FIXME change back to /10
+    min_support = max(2, int(local_asm.local_asm_cov / 20))
     self.logger.log('  - {} min_support required'.format(min_support))
 
     # filter input reads
@@ -421,7 +427,8 @@ class LocalAssembler(object):
     # if the contig is >20kb, create a local assembly at each end of the
     # root contig, otherwise just a single local assembly for the root
     root_size = self.ctg_size_map[self.root_ctg]
-    if root_size > 2 * SEED_SELF_ASM_SIZE:
+    if root_size > 1.5 * SEED_SELF_ASM_SIZE:
+    #if root_size > 2 * SEED_SELF_ASM_SIZE:
       self.logger.log('large root contig of size {}'.format(root_size))
       self.logger.log('  - generate head+tail local assemblies')
       # head
@@ -562,7 +569,7 @@ def downsample_link_subassembly(
   sub_bcodes = set()
   for bcode, _nr in bcode_counts.most_common():
     num_reads += _nr
-    if 1. * num_reads * read_size / target_size < 100:
+    if 1. * num_reads * read_size / target_size < DS_SUBASM_COV:
       sub_bcodes.add(bcode)
     else:
       break
@@ -573,7 +580,7 @@ def downsample_root_subassembly(bcode_counts, target_size, read_size):
   sub_bcodes = set()
   for bcode, _nr in bcode_counts.most_common():
     num_reads += _nr
-    if 1. * num_reads * read_size / target_size < 100:
+    if 1. * num_reads * read_size / target_size < DS_SUBASM_COV:
       sub_bcodes.add(bcode)
     else:
       break

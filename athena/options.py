@@ -128,6 +128,9 @@ class MetaAsmOptions(Options):
   def optional(self):
     return [
       ('cheat_seeds', None),
+
+      ('ds_subasm_cov', 100),
+      ('seed_self_asm_size', 10000),
     ]
   
   def __init__(self, options_path, debug=False):

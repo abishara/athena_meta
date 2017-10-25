@@ -5,6 +5,7 @@ from collections import defaultdict, Counter
 import shutil
 
 from ..assembler_tools.barcode_assembler.local import LocalAssembler
+from ..assembler_tools.barcode_assembler import local as local_assembler
 
 from .step import StepChunk
 from ..mlib import util
@@ -57,6 +58,15 @@ class AssembleMetaBinnedStep(StepChunk):
 
     self.logger.log('performing local assembly for {} seeds'.format(
       len(self.seeds)))
+
+    local_assembler.DS_SUBASM_COV = self.options.ds_subasm_cov
+    local_assembler.SEED_SELF_ASM_SIZE = self.options.seed_self_asm_size
+    self.logger.log('targeting {}x short-read subassembly coverage'.format(
+      local_assembler.DS_SUBASM_COV,
+    ))
+    self.logger.log('using barcodes mapped within {}bp from seed end-points for seed subassembly'.format(
+      local_assembler.SEED_SELF_ASM_SIZE,
+    ))
 
     asmrootdir_path = self.options.get_bin_asm_dir(self.binid)
     util.mkdir_p(asmrootdir_path)

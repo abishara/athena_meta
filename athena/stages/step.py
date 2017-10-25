@@ -106,5 +106,6 @@ class StepChunk(object):
           time.sleep(0.1)
     
     assert not self.needs_to_run()
-    self.clean_working()
+    if not self.options.cheat_seeds:
+      self.clean_working()
 
