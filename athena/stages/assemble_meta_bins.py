@@ -59,8 +59,12 @@ class AssembleMetaBinnedStep(StepChunk):
     self.logger.log('performing local assembly for {} seeds'.format(
       len(self.seeds)))
 
+    estimated_len = util.load_pickle(self.options.estimations_path)
+    if self.options.seed_self_asm_size:
+      local_assembler.SEED_SELF_ASM_SIZE = self.options.seed_self_asm_size
+    else:
+      local_assembler.SEED_SELF_ASM_SIZE = max(3500, estimated_len / 2)
     local_assembler.DS_SUBASM_COV = self.options.ds_subasm_cov
-    local_assembler.SEED_SELF_ASM_SIZE = self.options.seed_self_asm_size
     self.logger.log('targeting {}x short-read subassembly coverage'.format(
       local_assembler.DS_SUBASM_COV,
     ))

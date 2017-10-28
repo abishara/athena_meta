@@ -130,7 +130,7 @@ class MetaAsmOptions(Options):
       ('cheat_seeds', None),
 
       ('ds_subasm_cov', 100),
-      ('seed_self_asm_size', 10000),
+      ('seed_self_asm_size', None),
     ]
   
   def __init__(self, options_path, debug=False):
@@ -141,12 +141,16 @@ class MetaAsmOptions(Options):
   
   @property
   def bins_pickle_path(self): 
-      return os.path.join(self.working_dir, 'bins.p')
+    return os.path.join(self.working_dir, 'bins.p')
   
   @property
   def groups_pickle_path(self): 
-      return os.path.join(self.working_dir, 'bins.p')
-  
+    return os.path.join(self.working_dir, 'bins.p')
+
+  @property
+  def estimations_path(self): 
+      return os.path.join(self.working_dir, 'estimations.p')
+
   def get_bin_dir(self, binid, final=False):
     assert binid.startswith('bin')
     return os.path.join(
