@@ -16,7 +16,7 @@ must be installed:
 * `idba_ud <https://github.com/abishara/idba/releases/tag/1.1.3a1>`_ -- please use **this** version, which is modified both to handle longer short-read lengths and to locally assemble subsampled barcoded reads clouds.  Ensure all compiled binaries, including ``idba_subasm``, are in your ``$PATH``
 * `samtools and htslib <http://www.htslib.org/download/>`_ -- version 1.3 or later of ``samtools`` must all be in your ``$PATH``
 * `bwa-mem <https://github.com/lh3/bwa/releases>`_
-* `canu <https://github.com/marbl/canu>`_ -- version 1.3 or later
+* `flye <https://github.com/fenderglass/Flye>`_ -- version 2.3.1 or later
 
 We recommend setting up a `virtualenv
 <http://docs.python-guide.org/en/latest/dev/virtualenvs/>`_ prior to
@@ -110,9 +110,7 @@ The configuration file is in the `JSON <http://www.json.org>`_ format, and conta
 **Compute cluster settings** This defines the compute environment being
 used to perform assembly.  Athena manages the environment using
 `ipython-cluster-helper
-<https://github.com/roryk/ipython-cluster-helper>`_, however, support for
-Canu OLC to use a cluster is still under develoopment.  For now, we encourage
-running Athena on a large multicore machine.  
+<https://github.com/roryk/ipython-cluster-helper>`_
 
 A multiprocessing setup looks like this:
 
@@ -144,8 +142,7 @@ To use a compute cluster (not yet fully supported), a setup looks like this:
 ``scheduler`` may be any of the clusters supported by
 `ipython-cluster-helper`. Currently, these are
 Platform LSF ("lsf"), Sun Grid Engine ("sge"), Torque ("torque"), and
-SLURM ("slurm").  The Canu OLC step will run as a single job with a single
-node.
+SLURM ("slurm").  
 
 3. Run Athena
 """""""""""""""

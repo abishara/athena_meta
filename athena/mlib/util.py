@@ -12,23 +12,23 @@ from collections import defaultdict, Counter, namedtuple
 # prereqs
 #--------------------------------------------------------------------------
 def check_prereqs():
-  # canu
+  # flye
   try:
-    output = subprocess.check_output('canu --version', shell=True)
-    if output.startswith('Canu'):
-      vre = re.compile(r"v(\d+).(\d+)")
-      vr,vp = vre.search(output).groups()
-      if None in [vr, vp]:
-        print 'version cannot be parsed from --version'
-        assert False
-      vr,vp = int(vr),int(vp)
-      if vr == 0 and vp == 0:
-        print 'WARNING unrecognized canu version {}.{}'.format(vr,vp)
-      elif vr == 1 and vp < 3:
-        print 'Canu version must be 1.3+'
-        assert False, "version not up to date"
+    output = subprocess.check_output(
+      'flye --version', shell=True, stderr=subprocess.STDOUT)
+    vre = re.compile(r"(\d+).(\d+)")
+    vr,vp = vre.search(output).groups()
+    vr,vp = int(vr),int(vp)
+    if None in [vr, vp]:
+      print 'version cannot be parsed from --version'
+      assert False
+    if vr == 0 and vp == 0:
+      print 'WARNING unrecognized flye version {}.{}'.format(vr,vp)
+    elif vr < 2 or (vr == 2 and  vp < 3):
+      print 'flye version must be 2.3+'
+      assert False, "version not up to date"
   except:
-    print 'Canu not installed properly'
+    print 'flye not installed properly'
     sys.exit(1)
 
   # bwa
