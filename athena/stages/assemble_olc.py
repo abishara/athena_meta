@@ -99,7 +99,6 @@ class AssembleOLCStep(StepChunk):
       # append input seed contigs
       with open(seedsfa_path, 'w') as fout:
         fasta = pysam.FastaFile(self.options.ctgfasta_path)
-        seed_draft_size = sum(fasta.lengths)
         for ctg in seed_ctgs:  
           seq = str(fasta.fetch(ctg).upper())
           for i in xrange(5):
@@ -114,8 +113,9 @@ class AssembleOLCStep(StepChunk):
     assert is_valid_fasta(mergedfiltfa_path), "merge FASTA not valid"
 
     # run flye OLC assembly
+    seed_draft_size = sum(pysam.FastaFile(self.options.ctgfasta_path).lengths)
     flye0_path = os.path.join(self.outdir, 'flye-asm-1')
-    flye_contigs_path = os.path.join(flye0_path, 'graph_final.fasta')
+    flye_contigs_path = os.path.join(flye0_path, 'scaffolds.fasta')
     cmd = '{} --subassemblies {} --out-dir {} --genome-size {} --threads 4 --min-overlap 1000'.format(
       flyebin_path,
       mergedfiltfa_path,
