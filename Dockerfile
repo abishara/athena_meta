@@ -18,13 +18,13 @@ RUN apt-get -y install zlib1g-dev
 
 RUN apt-get -y install ncurses-dev
 
-RUN wget https://github.com/grocsvs/idba/archive/1.1.3g1.tar.gz \
-     && tar -xf 1.1.3g1.tar.gz \
-     && cd idba-1.1.3g1 \
+RUN wget https://github.com/abishara/idba/archive/1.1.3a1.tar.gz \
+     && tar -xf 1.1.3a1.tar.gz \
+     && cd idba-1.1.3a1 \
      && ./build.sh \
      && ./configure \
      && make \
-     && mv bin/idba_ud /bin
+     && mv bin/idba_subasm /bin
 
 RUN wget https://github.com/lh3/bwa/releases/download/v0.7.15/bwa-0.7.15.tar.bz2 \
      && tar -xf bwa-0.7.15.tar.bz2 \
@@ -42,18 +42,19 @@ RUN wget https://github.com/samtools/htslib/releases/download/1.3.2/htslib-1.3.2
      && cd htslib-1.3.2 \
      && make install
 
-RUN wget https://github.com/marbl/canu/archive/v1.4.tar.gz \
-     && tar -xf v1.4.tar.gz \
-     && cd canu-1.4/src \
-     && make \
-     && ln -s $(readlink -f ../Linux-amd64/bin/canu) /bin/canu
+RUN wget https://github.com/fenderglass/Flye/archive/2.3.1.tar.gz \
+     && tar -xf 2.3.1.tar.gz \
+     && cd Flye-2.3.1 \
+     && python setup.py build \
+     && ln -s $(readlink -f bin/flye) /bin/flye
 
 RUN apt-get -y install python-pip && pip install -U pip
 
 RUN mkdir athena_meta_src && cd athena_meta_src \
-     && wget https://github.com/abishara/athena_meta/archive/1.0.tar.gz -O athena_meta.tar.gz \
+     && wget https://github.com/abishara/athena_meta/archive/1.1.tar.gz -O athena_meta.tar.gz \
      && tar -xf athena_meta.tar.gz --strip-components 1 \
      && pip install -r requirements.txt \
      && pip install -vvv .
 
 CMD athena-meta
+

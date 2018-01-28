@@ -187,7 +187,7 @@ you downloaded and extracted readclouds-meta-asm-example.tar.gz):
 
 .. code-block:: bash
 
-    docker run -v `pwd`:/data -w /data/readclouds-l-gasseri-example abishara/athena-meta-docker-flye athena-meta config.json
+    docker run -v `pwd`:/data -w /data/readclouds-l-gasseri-example abishara/athena-meta-flye-docker athena-meta config.json
 
 This requires ~16GB of memory to run (for overlap assembly) and will take ~20
 minutes to complete. If you are running docker for Mac, please make sure
