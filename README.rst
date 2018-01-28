@@ -3,6 +3,9 @@ Athena
 
 Athena is a read cloud assembler for metagenomes.
 
+### Version: 0.2
+
+* Athena has switched to using Flye (instead of Canu) for overlap assembly of subassembled contigs
 
 Installation
 ============
@@ -167,14 +170,15 @@ Docker (and example dataset)
 ============================
 
 A docker image is available for Athena.  To download and run
-``athena-meta`` on the example read clouds (~108MB), you can run the
+``athena-meta`` on the example read clouds (~46MB), you can run the
 following commands:
 
 .. code-block:: bash
     
     # use 'curl -O' if you're on a mac without wget
-    wget https://storage.googleapis.com/gbsc-gcp-lab-bhatt-public/readclouds-meta-asm-example.tar.gz
-    tar -xzf readclouds-meta-asm-example.tar.gz
+    wget https://storage.googleapis.com/gbsc-gcp-lab-bhatt-public/readclouds-l-gasseri-example.tar.gz
+
+    tar -xzf readclouds-l-gasseri-example.tar.gz
 
 Assuming `docker <https://docs.docker.com/engine/installation/>`_ is
 installed, the following command can be used to assemble the example read
@@ -183,9 +187,9 @@ you downloaded and extracted readclouds-meta-asm-example.tar.gz):
 
 .. code-block:: bash
 
-    docker run -v `pwd`:/data -w /data/readclouds-meta-asm-example abishara/athena-meta-docker athena-meta config.json
+    docker run -v `pwd`:/data -w /data/readclouds-l-gasseri-example abishara/athena-meta-docker-flye athena-meta config.json
 
-This requires ~16GB of memory to run (for OLC assembly) and will take ~20
+This requires ~16GB of memory to run (for overlap assembly) and will take ~20
 minutes to complete. If you are running docker for Mac, please make sure
 that your docker client has access to at least 16GB of memory (you may
 need to set in Preferences).
