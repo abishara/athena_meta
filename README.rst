@@ -3,7 +3,7 @@ Athena
 
 Athena is a read cloud assembler for metagenomes.
 
-### Version: 0.2
+**Version: 1.1**
 
 * Athena has switched to using Flye (instead of Canu) for overlap assembly of subassembled contigs
 

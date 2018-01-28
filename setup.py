@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
   name = "athena",
-  version = "0.1",
+  version = "1.1",
   packages = filter(lambda x: x.find('athena') == 0, find_packages()),
   py_modules = ['main'],
   entry_points = {
