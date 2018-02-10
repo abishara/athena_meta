@@ -46,10 +46,8 @@ class AssembleOLCStep(StepChunk):
     return self.__class__.__name__
 
   def run(self):
-    self.logger.log('jointly assemble bins with OLC')
+    self.logger.log('jointly overlap-assemble')
 
-    # collect input contig and local reasm contigs
-    self.logger.log('merge input contigs')
 
     premergedfa_path = os.path.join(self.outdir, 'pre-flye-input-contigs.fa')
     premergedfiltfa_path = os.path.join(self.outdir, 'pre-flye-input-contigs.filt.fa')
@@ -58,6 +56,7 @@ class AssembleOLCStep(StepChunk):
 
     # load all the bins and merge
     if not os.path.isfile(premergedfa_path):
+      self.logger.log('merge input contigs')
       bins = util.load_pickle(self.options.bins_pickle_path)
       input_paths = []
       seed_ctgs = set()
@@ -90,6 +89,7 @@ class AssembleOLCStep(StepChunk):
       subprocess.check_call(cmd, shell=True)
 
     if not os.path.isfile(mergedfiltfa_path):
+      self.logger.log('filter short subassembled contigs and merge with seeds')
       filter_inputs(
         mergedbam_path,
         premergedfa_path,
@@ -99,7 +99,11 @@ class AssembleOLCStep(StepChunk):
       # append input seed contigs
       with open(seedsfa_path, 'w') as fout:
         fasta = pysam.FastaFile(self.options.ctgfasta_path)
+        seed_ctgs = self.load_seeds()
         for ctg in seed_ctgs:  
+          size = fasta.get_reference_length(ctg)
+          if size < 1000:
+            continue
           seq = str(fasta.fetch(ctg).upper())
           for i in xrange(5):
           #for i in xrange(2):
@@ -113,7 +117,12 @@ class AssembleOLCStep(StepChunk):
     assert is_valid_fasta(mergedfiltfa_path), "merge FASTA not valid"
 
     # run flye OLC assembly
-    seed_draft_size = sum(pysam.FastaFile(self.options.ctgfasta_path).lengths)
+    seed_draft_size = 0
+    fasta = pysam.FastaFile(self.options.ctgfasta_path)
+    seed_ctgs = self.load_seeds()
+    for ctg in seed_ctgs:
+      seed_draft_size += fasta.get_reference_length(ctg)
+
     flye0_path = os.path.join(self.outdir, 'flye-asm-1')
     flye_contigs_path = os.path.join(flye0_path, 'scaffolds.fasta')
     cmd = '{} --subassemblies {} --out-dir {} --genome-size {} --threads 4 --min-overlap 1000'.format(
@@ -135,6 +144,14 @@ class AssembleOLCStep(StepChunk):
 #--------------------------------------------------------------------------
 # helpers
 #--------------------------------------------------------------------------
+  def load_seeds(self):
+    bins = util.load_pickle(self.options.bins_pickle_path)
+    seed_ctgs = set()
+    for (binid, seed_group) in bins:
+      for ctg in seed_group:
+        seed_ctgs.add(ctg)
+    return seed_ctgs
+
 def filter_inputs(
   mergedbam_path,
   mergedfa_path,
