@@ -145,7 +145,7 @@ class LocalAssembler(object):
       multiplicity=max(10, min_support+2),
     )
 
-    cmd = '{} --min_support {} -r {} -l {} --seed_contig {} -o {}'.format(
+    cmd = '{} --num_threads 2 --min_support {} -r {} -l {} --seed_contig {} -o {}'.format(
       idbabin_path,
       min_support,
       readsfa_path,
