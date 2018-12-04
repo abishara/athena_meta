@@ -61,7 +61,7 @@ Input read clouds must be specified as an uncompressed paired-end
 interleaved FASTQ, with the following tag information as in the example
 read pair below:
 
-.. code-block:: txt
+.. code-block:: text
 
   @NS500418:354:H27G3BGXY:3:12612:25572:11380 RG:Z:readgroup1 BC:Z:GCCAATTCAAGTTT-1
   TTCCATGTGGAAGTAGTTGTATTTGACGTAGCCCGCCATACCGTTTTCTGACATGAAGCGGTAATTCTCCTCAGAACCGTAGCCGGATACGGCCACCACCGTATGGGCCAACCTGTCATATCTGCTTGAGAAGGATTG
@@ -75,6 +75,9 @@ read pair below:
 For each barcoded read, there must be a tag (either BC or BX, but not
 both) specifying the barcode.  Note that the query name line for each read
 can have mulitple space or tab delimited tags. 
+
+The input FASTQ file **must** be barcode-sorted such that all reads with
+the same attached barcode appear in a contiguous block.
  
 Run Spades or idba_ud out of the box to assemble your input barcoded read
 clouds into seed contigs.  An example using Spades:
@@ -196,6 +199,15 @@ need to set in Preferences).
 
 The output can be found in native host directory of
 ``readclouds-meta-asm-example``.
+
+Citing Athena
+===============
+
+Please cite the following publication:
+
+* A. Bishara and E. Moss, et al.  High-quality genome sequences of
+  uncultured microbes by assembly of read clouds. *Nature Biotechnology
+  2018* `<https://doi.org/10.1038/nbt.4266>`_.
 
 Troubleshooting
 ===============
