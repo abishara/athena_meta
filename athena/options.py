@@ -50,7 +50,8 @@ class Options(object):
     value) """
     raise Exception("Not implemented yet")
 
-  def __init__(self, options_path, **kwdargs):
+  def __init__(self, options_path,  **kwdargs):
+
     self.options_path = options_path
     self._output_dir = os.path.dirname(self.options_path)
     if self._output_dir == '':
@@ -62,6 +63,14 @@ class Options(object):
     
     # set optional to default
     for opt, val in self.optional:
+      setattr(self, opt, val)
+
+    # set any arguments specified by keyword args
+    for opt, val in kwdargs.items():
+      assert opt in self.required or opt in self.optional, \
+        "unexpected {} keyword argument {}".format(
+          type(self).__name__, opt,
+        )
       setattr(self, opt, val)
     
     self.cluster_settings = ClusterSettings()
@@ -133,11 +142,8 @@ class MetaAsmOptions(Options):
       ('seed_self_asm_size', 10000),
     ]
   
-  def __init__(self, options_path, debug=False):
-      super(MetaAsmOptions, self).__init__(options_path)
-  
-      self._bcode_idx_map = None
-      self._ctg_idx_map = None
+  def __init__(self, options_path, **kwdargs):
+      super(MetaAsmOptions, self).__init__(options_path, **kwdargs)
   
   @property
   def bins_pickle_path(self): 
