@@ -542,7 +542,7 @@ def get_bcode_reads(infq_paths, outfa_path, bcode_set):
   with open(outfa_path, 'w') as fout:
     for fq_path in infq_paths:
       with FastqIndex(fq_path) as idx:
-        for bcode in bcode_set & idx.bcode_set:
+        for bcode in bcode_set & idx.bcodes:
           for _, qname, lines in idx.get_reads(bcode):
             # tag qname with barcode
             nqname = '{}${}'.format(bcode, qname)

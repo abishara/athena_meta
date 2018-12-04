@@ -58,7 +58,12 @@ def test():
     reads_ctg_bam_path=bam_path,
     input_fqs=readsfq_path,
   )
-  run(options)
+  try:
+    run(options)
+  except Exception, e:
+    logging.error('='*30)
+    logging.error('test failed to run to completion')
+    sys.exit(1)
 
   # check outputs for correctness
   outfa_path = os.path.join(testd, 'results/olc/athena.asm.fa')
@@ -130,7 +135,6 @@ def main():
   1. process command-line arguments
   3. run
   """
-
   #test()
 
   argv = sys.argv
