@@ -63,21 +63,20 @@ read pair below:
 
 .. code-block:: text
 
-  @NS500418:354:H27G3BGXY:3:12612:25572:11380 RG:Z:readgroup1 BC:Z:GCCAATTCAAGTTT-1
+  @NS500418:354:H27G3BGXY:3:12612:25572:11380	RG:Z:rg-1	BC:Z:GCCAATTCAAGTTT-1
   TTCCATGTGGAAGTAGTTGTATTTGACGTAGCCCGCCATACCGTTTTCTGACATGAAGCGGTAATTCTCCTCAGAACCGTAGCCGGATACGGCCACCACCGTATGGGCCAACCTGTCATATCTGCTTGAGAAGGATTG
   +
   EEEEEEEEEEEEEEEEEEEEEEEEEAEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE/EEEEEEEEEEEEEEEEEEE6EEAEEEEAEEEEEEEEEEEEEEAEEEEEEEEEEEEEAEEEEEE
-  @NS500418:354:H27G3BGXY:3:12612:25572:11380 RG:Z:readgroup1 BC:Z:GCCAATTCAAGTTT-1
+  @NS500418:354:H27G3BGXY:3:12612:25572:11380	RG:Z:rg-1	BC:Z:GCCAATTCAAGTTT-1
   CACGTGGTCTGGCGGGTCTCGCGCCACCTCTGGTTCGCCGTGGCCCTAACGGACAAGGACGCTACTTTCATGAGAATGAAGGAGGATGCCATGCGTAACGGCCAGACAAAGCCCGGTTACAACCTCCAGAACGGCACCGAGAACCAGA
   +
   AAA<A/AE///<///<EEEE<AE/AEA/EAE</EAAEEE/EEAE6AE/<E<<EE<AA<AEEAA/E6/6AEA/</EEA/A/AAAEE</<EEA6<<AA<<EEEEEA//EA<<AE<EA/66<EA/EE6<A////A/AA6EA/66/6AA/A6 
 
-For each barcoded read, there must be a tag (either BC or BX, but not
-both) specifying the barcode.  Note that the query name line for each read
-can have mulitple space or tab delimited tags. 
+The barcoded interleaved FASTQ must satisfy the following:
 
-The input FASTQ file **must** be barcode-sorted such that all reads with
-the same attached barcode appear in a contiguous block.
+* For each barcoded read, there must be a tag (either BC or BX, but not both) specifying the barcode.  Each barcode must also end with a '-' followed by an integer sample identifier.
+* The query name line for each read can have mulitple tags, but these **must** be tab-delimited to be compatible with BWA MEM specifying -C.
+* The input FASTQ file **must** be barcode-sorted such that all reads with the same attached barcode appear in a contiguous block.
  
 Run Spades or idba_ud out of the box to assemble your input barcoded read
 clouds into seed contigs.  An example using Spades:
