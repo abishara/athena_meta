@@ -20,8 +20,11 @@ class FastqIndex(object):
     return self._bcodes
 
   @property
-  def num_bcodes(self):
-    return len(self.bcodes)
+  def num_bcodes(self): return len(self.bcodes)
+  @property
+  def num_pe(self): return self._num_pe
+  @property
+  def num_pe_bcoded(self): return self._num_pe_bcoded
 
   def __init__(
     self,
@@ -34,8 +37,8 @@ class FastqIndex(object):
     self.index_path = self.get_index_path(fq_path)
     self._bcodes = None
     self._bcode_off_map = None
-    self.num_pe = 0
-    self.num_pe_bcoded = 0
+    self._num_pe = 0
+    self._num_pe_bcoded = 0
 
     if not os.path.isfile(self.index_path):
       self.__build_index__()
@@ -65,8 +68,8 @@ class FastqIndex(object):
   def __build_index__(self):  
     numbytes = 0
     self._bcode_off_map = {}
-    num_pe = 0
-    num_pe_bcoded = 0
+    _num_pe = 0
+    _num_pe_bcoded = 0
 
     assert not self.fq_path.endswith('.gz'), \
       "gzipped fq not supported"
@@ -87,26 +90,19 @@ are in a block together".format(self.fq_path)
           bcode_num_pe += 1
           txt = ''.join(lines)
           numbytes += len(txt)
-        num_pe += bcode_num_pe
+        _num_pe += bcode_num_pe
         if bcode != None:
-          num_pe_bcoded += bcode_num_pe
+          _num_pe_bcoded += bcode_num_pe
 
-    self.num_pe = num_pe
-    self.num_pe_bcoded = num_pe_bcoded
+    self._num_pe = _num_pe
+    self._num_pe_bcoded = _num_pe_bcoded
     num_bcodes = len(filter(
       lambda(b): b.endswith('-1'),
       self._bcode_off_map.keys(),
     ))
-    assert num_bcodes > 0, \
-      "no barcodes specified in fastq {}".format(self.fq_path)
-    assert self.num_pe * 0.8 < self.num_pe_bcoded, \
-'''
-      lower than expected ({:2.2f}%) of barcoded reads detected in fastq {}
-        * use --force-input-fq to proceed
-'''.format(100.*self.num_pe_bcoded / self.num_pe, self.fq_path)
 
     self.logger.log('fqinfo${},{},{}'.format(
-      num_pe, len(self._bcode_off_map), num_bcodes,
+      self.num_pe, len(self._bcode_off_map), num_bcodes,
     ))
     print 'writing index for fqs'
     for fq_path in [self.fq_path]:

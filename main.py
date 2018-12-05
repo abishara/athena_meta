@@ -14,9 +14,8 @@ from athena.mlib import util
 from athena import pipeline
 from athena.options import MetaAsmOptions
 
-from athena.stages import index_reads
-from athena.stages import bin_meta_reads
-from athena.stages import assemble_meta_bins
+from athena.stages import check_reads
+from athena.stages import subassemble_reads
 from athena.stages import assemble_olc
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
@@ -58,6 +57,7 @@ def test():
     reads_ctg_bam_path=bam_path,
     input_fqs=readsfq_path,
   )
+  run(options)
   try:
     run(options)
   except Exception, e:
@@ -108,9 +108,8 @@ def get_stages(options):
   stages = collections.OrderedDict()
   
   if options.pipe_type == 'meta-asm':
-    stages["bin_reads"] = bin_meta_reads.BinMetaReadsStep
-    stages["index_reads"] = index_reads.IndexReadsStep
-    stages["assemble_bins"] = assemble_meta_bins.AssembleMetaBinnedStep
+    stages["check_reads"] = check_reads.CheckReadsStep
+    stages["subassemble_reads"] = subassemble_reads.SubassembleReadsStep
     stages["assemble_olc"] = assemble_olc.AssembleOLCStep
   else:
     raise Exception("Pipeline not implemented yet")

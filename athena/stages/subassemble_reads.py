@@ -14,7 +14,7 @@ from ..mlib.fq_idx import FastqIndex
 MIN_SEED_SIZE = 500
 MIN_SEED_SIZE = 400
 
-class AssembleMetaBinnedStep(StepChunk):
+class SubassembleReadsStep(StepChunk):
 
   @staticmethod
   def get_steps(options):
@@ -22,7 +22,7 @@ class AssembleMetaBinnedStep(StepChunk):
     bins = util.load_pickle(options.bins_pickle_path)
     
     for i, (binid, seeds) in enumerate(bins):
-      yield AssembleMetaBinnedStep(options, binid, seeds)
+      yield SubassembleReadsStep(options, binid, seeds)
 
   def __init__(
     self,
@@ -45,7 +45,6 @@ class AssembleMetaBinnedStep(StepChunk):
   def outpaths(self, final=False):
     paths = {}
     paths['local-asm-merged.fa'] = os.path.join(self.outdir, 'local-asm-merged.fa')
-    #paths['shit'] = 'shit'
     return paths
 
   def clean_working(self):
