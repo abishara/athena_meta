@@ -4,8 +4,8 @@ import subprocess
 from collections import defaultdict, Counter
 import shutil
 
-from ..assembler_tools.barcode_assembler.local import LocalAssembler
-from ..assembler_tools.barcode_assembler import local as local_assembler
+from ..subassembly.barcode_assembler import LocalAssembler
+from ..subassembly import barcode_assembler as local_assembler
 
 from .step import StepChunk
 from ..mlib import util
