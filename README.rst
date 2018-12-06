@@ -49,7 +49,7 @@ Running Athena
 
 Overview:
 
-1. Generate input seed contigs for Athena with Spades/idba_ud.  Align barcoded input reads to seed contigs with BWA.
+1. Generate input seed contigs for Athena with metaspades/idba_ud.  Align barcoded input reads to seed contigs with BWA.
 2. Setup a ``config.json`` file, which specifies inputs to Athena and your compute (eg cluster) setup
 3. Run Athena
 
@@ -78,12 +78,12 @@ The barcoded interleaved FASTQ must satisfy the following:
 * The query name line for each read can have mulitple tags, but these **must** be tab-delimited to be compatible with BWA MEM specifying -C.
 * The input FASTQ file **must** be barcode-sorted such that all reads with the same attached barcode appear in a contiguous block.
  
-Run Spades or idba_ud out of the box to assemble your input barcoded read
-clouds into seed contigs.  An example using Spades:
+Run metaspades or idba_ud out of the box to assemble your input barcoded read
+clouds into seed contigs.  An example using metaspades:
 
 .. code-block:: bash
 
-   spades.py --12 /path/to/reads  -o /path/to/spades/out
+   metaspades.py --12 /path/to/reads  -o /path/to/metaspades/out
 
 Create a BWA index for the ouput short-read draft assembly.
 Then run BWA MEM specifying -C, to pass the FASTQ tags through to the BAM, and
@@ -91,8 +91,11 @@ Then run BWA MEM specifying -C, to pass the FASTQ tags through to the BAM, and
 
 .. code-block:: bash
 
-   bwa index /path/to/spades/out/contigs.fasta
-   bwa mem -C -p /path/to/spades/out/contigs.fasta /path/to/reads | samtools sort -o align-reads.spades-contigs.bam -
+   bwa index /path/to/metaspades/out/contigs.fasta
+   bwa mem -C -p /path/to/metaspades/out/contigs.fasta /path/to/reads | samtools sort -o align-reads.metaspades-contigs.bam -
+   samtools index align-reads.metaspades-contigs.bam
+
+Note that the resulting BAM must be position sorted and indexed.
 
 2. Setup a configuration file
 """""""""""""""""""""""""""""
