@@ -83,8 +83,10 @@ class AssembleOLCStep(StepChunk):
       )
 
     # filter subassembled inputs that are not useful
+    num_threads = self.options.cluster_settings.processes
     mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
-    cmd = 'bwa mem -t 4 {} {} | samtools view -bS - | samtools sort -o {} - '.format(
+    cmd = 'bwa mem -t {} {} {} | samtools view -bS - | samtools sort -o {} - '.format(
+      num_threads,
       self.options.ctgfasta_path,
       premergedfa_path,
       mergedbam_path,
@@ -135,11 +137,12 @@ class AssembleOLCStep(StepChunk):
 
     flye0_path = os.path.join(self.outdir, 'flye-asm-1')
     flye_contigs_path = os.path.join(flye0_path, 'scaffolds.fasta')
-    cmd = '{} --subassemblies {} --out-dir {} --genome-size {} --threads 4 --min-overlap 1000'.format(
+    cmd = '{} --subassemblies {} --out-dir {} --genome-size {} --threads {} --min-overlap 1000'.format(
       flyebin_path,
       mergedfiltfa_path,
       flye0_path,
       seed_draft_size,
+      num_threads,
     )
     if not os.path.isfile(flye_contigs_path):
       print 'launching Flye OLC assembly'
