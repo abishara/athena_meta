@@ -16,6 +16,10 @@ class Logger(object):
   def open_log(self):
     if self.log_file is None:
       self.log_file = open(self.log_path, "w")
+
+  def close_log(self):
+    if self.log_file != None:
+      self.log_file.close()
   
   def log(self, message):
     date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

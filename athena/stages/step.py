@@ -58,6 +58,7 @@ class StepChunk(object):
     elapsed = time.time() - self._start_time
     self.logger.log("-> finished running step; time elapsed: {}".format(datetime.timedelta(seconds=elapsed)))
     self.logger.log("--stopping logging--")
+    self.logger.close_log()
       
   @classmethod
   def clean_all_steps(cls, options):
