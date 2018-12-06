@@ -1,4 +1,5 @@
 import os
+import sys
 import pysam
 import subprocess
 import shutil
@@ -9,6 +10,9 @@ from ..mlib import util
 
 # NOTE must be in path
 flyebin_path = 'flye'
+
+class SubassemblyException(Exception):
+  pass
 
 class AssembleOLCStep(StepChunk):
 
@@ -46,8 +50,6 @@ class AssembleOLCStep(StepChunk):
     return self.__class__.__name__
 
   def run(self):
-    self.logger.log('jointly overlap-assemble')
-
 
     premergedfa_path = os.path.join(self.outdir, 'pre-flye-input-contigs.fa')
     premergedfiltfa_path = os.path.join(self.outdir, 'pre-flye-input-contigs.filt.fa')
@@ -73,6 +75,12 @@ class AssembleOLCStep(StepChunk):
           input_paths.append(fa_path)
       util.concat_files(input_paths, premergedfa_path)
     assert is_valid_fasta(premergedfa_path), "merge FASTA not valid"
+
+    # check if any subassembled contigs present
+    if os.path.getsize(premergedfa_path) == 0:
+      raise SubassemblyException(
+        'FAILED to produce any subassembled contigs, cannot OLC assemble'
+      )
 
     # filter subassembled inputs that are not useful
     mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
@@ -115,6 +123,8 @@ class AssembleOLCStep(StepChunk):
         mergedfiltfa_path,
       )
     assert is_valid_fasta(mergedfiltfa_path), "merge FASTA not valid"
+
+
 
     # run flye OLC assembly
     seed_draft_size = 0

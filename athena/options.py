@@ -18,6 +18,18 @@ class ClusterSettings(object):
     self.cluster_options = {}
   
   @staticmethod
+  def local():
+    return ClusterSettings()
+
+  @staticmethod
+  def multiprocessing(processes):
+    settings = ClusterSettings()
+    settings.cluster_type = 'multiprocessing'
+    settings.processes = processes
+    settings.cluster_options = {}
+    return settings
+    
+  @staticmethod
   def deserialize(options_dict):
     settings = ClusterSettings()
     
@@ -74,6 +86,11 @@ class Options(object):
       setattr(self, opt, val)
     
     self.cluster_settings = ClusterSettings()
+
+  def set_cl_args(self, args):
+    self.force_reads = args.force_reads
+    if args.threads > 1:
+      self.cluster_settings = ClusterSettings.multiprocessing(args.threads)
 
   @classmethod
   def deserialize(cls, options_path):
@@ -137,7 +154,7 @@ class MetaAsmOptions(Options):
   def optional(self):
     return [
       ('cheat_seeds', None),
-
+      ('force_reads', False),
       ('ds_subasm_cov', 100),
       ('seed_self_asm_size', 10000),
     ]

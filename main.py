@@ -2,6 +2,7 @@ import os
 import sys
 import collections
 import logging
+import argparse
 
 import subprocess
 import gzip
@@ -20,7 +21,7 @@ from athena.stages import assemble_olc
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
-def test():
+def test(args):
   logging.info('running tiny test assembly')
   src_testdir_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
@@ -57,7 +58,7 @@ def test():
     reads_ctg_bam_path=bam_path,
     input_fqs=readsfq_path,
   )
-  run(options)
+  options.set_cl_args(args)
   try:
     run(options)
   except Exception, e:
@@ -70,13 +71,13 @@ def test():
   seedlen = sum(pysam.FastaFile(seedfa_path).lengths)
   asmlen = max(pysam.FastaFile(outfa_path).lengths)
   if seedlen > asmlen:
-    logging.error('test failed to assemble seed contigs')
+    logging.error('test ran to completion, but failed to assemble seed contigs')
     logging.error('  output run in {}'.format(testd))
+    return False
   else:
     logging.info('--> test completed successfully.\n')
-
-  #print 'ran in testd', testd
-  shutil.rmtree(testd)
+    shutil.rmtree(testd)
+    return True
 
 def run(options):
   """
@@ -130,39 +131,57 @@ def clean_up():
   map(lambda(f): os.remove(f), junk)
 
 def main():
-  """
-  1. process command-line arguments
-  3. run
-  """
-  #test()
 
-  argv = sys.argv
-  help_str = '''
-  usage: athena-meta <path/to/config.json>
-
-  NOTE: dirname(config.json) specifies root output directory
-  '''
-  if len(argv) != 2:
-    print help_str
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+    '--config',
+    default=None,
+    help='input JSON config file, NOTE: dirname(config.json) specifies root output directory'
+  )
+  parser.add_argument(
+    '--test',
+    action='store_true',
+    help='run tiny assembly test to check setup and prereqs'
+  )
+  parser.add_argument(
+    '--force_reads',
+     action='store_true',
+     help='proceed with subassembly even if input *bam and *fastq do not pass QC'
+  )
+  parser.add_argument(
+    '--threads',
+    type=int,
+    default=1,
+    help='number of multiprocessing threads',
+  )
+  if len(sys.argv) == 1:
+    print 'error: either --config or --test must be specified\n'
+    parser.print_help(sys.stderr)
     sys.exit(1)
 
-  config_path = argv[1]
-  if not os.path.isfile(config_path):
-    print >> sys.stderr, "must specify valid config_path"
-    print >> sys.stderr, help_str
+  args = parser.parse_args()
+  if args.test and args.config != None:
+    print 'either --config or --test can be specified, but not both\n'
+    parser.print_help(sys.stderr)
     sys.exit(1)
+
+  if args.test:
+    test(args)
+    sys.exit(0)
+
+  assert os.path.isfile(args.config), \
+    "config {} is not a path to a file".format(args.config)
 
   # load config json
-  options_cls = {
-    'meta-asm': MetaAsmOptions,
-  }['meta-asm']
   try:
-    options = options_cls.deserialize(config_path)
+    options = MetaAsmOptions.deserialize(args.config)
   except Exception as e:
-    print >> sys.stderr, "{} invalid JSON config file, Exception:".format(config_path)
+    print >> sys.stderr, "{} invalid JSON config file, Exception:".format(args.config)
     print >> sys.stderr, str(e)
-    print >> sys.stderr, help_str
     sys.exit(2)
+
+  # set command line overrides
+  options.set_cl_args(args)
 
   #clean(options)
   run(options)

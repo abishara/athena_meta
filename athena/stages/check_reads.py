@@ -1,4 +1,5 @@
 import os
+import sys
 import pysam
 import random
 from collections import Counter
@@ -56,16 +57,24 @@ class CheckReadsStep(StepChunk):
   def run(self):
     self.logger.log('index fastq {}'.format(self.nfq_path))
     with FastqIndex(self.nfq_path, self.logger) as idx:
-      fq_num_pe_bcoded = idx.num_pe_bcoded
+      fq_num_se_bcoded = idx.num_se_bcoded
       # check for barcodes in fastq
       assert idx.num_bcodes > 0, \
         "no barcodes specified in fastq {}".format(self.fq_path)
-      assert idx.num_pe * 0.8 < idx.num_pe_bcoded, \
-'''
-      lower than expected ({:2.2f}%) of barcoded reads detected in fastq {}
-        * use --force-reads to proceed
-'''.format(100.*idx.num_pe_bcoded / idx.num_pe, self.fq_path)
 
+      if idx.num_se * 0.8 > idx.num_se_bcoded:
+        print \
+'''lower than expected ({:2.2f}%) of barcoded reads detected in fastq {}
+'''.format(100.*idx.num_se_bcoded / idx.num_se, self.fq_path)
+        if self.options.force_reads:
+          print \
+'''  --force_reads specified, proceeding without *fastq and *bam QC passing.
+'''
+        else:
+          print \
+'''  specify --force_reads to bypass QC checks.  Barcoded subassembly likely to fail.
+'''
+          sys.exit(1)
     # use cheat seeds if specified (for debugging)
     if self.options.cheat_seeds:
       self.logger.log('using cheat seeds file: {}'.format(self.options.cheat_seeds))
@@ -81,14 +90,23 @@ class CheckReadsStep(StepChunk):
     else:
       self.logger.log('get seed contigs from input assembly')
       ctg_covs, bam_num_se_bcoded = self.get_bam_stats()
-      bam_num_pe_bcoded = bam_num_se_bcoded / 2
-      assert bam_num_pe_bcoded < 0.8 * fq_num_pe_bcoded, \
+      if bam_num_se_bcoded < 0.8 * fq_num_se_bcoded:
+        print \
+'''lower than expected amount (~{:2.2f}%) of barcoded reads from fastq {} detected in bam {}
+'''.format(
+          100.*bam_num_se_bcoded / fq_num_se_bcoded, 
+          self.fq_path,
+          self.options.reads_ctg_bam_path,
+        )
+        if self.options.force_reads:
+          print \
+'''  --force_reads specified, proceeding without *fastq and *bam QC passing.
 '''
-      only ~{:2.2f}% of barcoded reads detected in *bam {} as compared to
-      fastq {}
-        * use --force-reads to proceed
-'''.format(100.*bam_num_pe_bcoded / fq_num_pe_bcoded, self.fq_path)
-
+        else:
+          print \
+'''  specify --force_reads to bypass QC checks.  Barcoded subassembly likely to fail.
+'''
+          sys.exit(1)
       seeds = self.get_seeds(ctg_covs)
       random.shuffle(seeds)
 
@@ -131,7 +149,7 @@ class CheckReadsStep(StepChunk):
   def get_bam_stats(self):
     ctg_counts_path = os.path.join(self.options.working_dir, 'ctg_counts.p')
     if os.path.isfile(ctg_counts_path):
-      return Counter(util.load_pickle(ctg_counts_path))
+      return util.load_pickle(ctg_counts_path)
     self.logger.log('computing seed coverages (required pass thru *bam)')
     bam_fin = pysam.Samfile(self.options.reads_ctg_bam_path, 'rb')
     ctg_bases = Counter()
@@ -149,6 +167,6 @@ class CheckReadsStep(StepChunk):
       lambda(c, b) : (c, 1. * b / ctg_size_map[c]),
       ctg_bases.iteritems()
     )))
-    util.write_pickle(ctg_counts_path, ctg_covs)
+    util.write_pickle(ctg_counts_path, (ctg_covs, num_se_bcoded))
     return ctg_covs, num_se_bcoded
 
