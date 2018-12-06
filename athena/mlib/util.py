@@ -9,49 +9,6 @@ import cPickle as pickle
 from collections import defaultdict, Counter, namedtuple
 
 #--------------------------------------------------------------------------
-# prereqs
-#--------------------------------------------------------------------------
-def check_prereqs():
-  # flye
-  try:
-    output = subprocess.check_output(
-      'flye --version', shell=True, stderr=subprocess.STDOUT)
-    vre = re.compile(r"(\d+).(\d+)")
-    vr,vp = vre.search(output).groups()
-    vr,vp = int(vr),int(vp)
-    if None in [vr, vp]:
-      print 'version cannot be parsed from --version'
-      assert False
-    if vr == 0 and vp == 0:
-      print 'WARNING unrecognized flye version {}.{}'.format(vr,vp)
-    elif vr < 2 or (vr == 2 and  vp < 3):
-      print 'flye version must be 2.3+'
-      assert False, "version not up to date"
-  except:
-    print 'flye not installed properly'
-    sys.exit(1)
-
-  # bwa
-  # cannot invoke with no args without non-zero exit status
-
-  # samtools
-  try:
-    output = subprocess.check_output('samtools --version', shell=True)
-    vre = re.compile(r"samtools\s+(\d+).(\d+)")
-    vr,vp = map(int, vre.search(output).groups())
-    if None in [vr, vp]:
-      print 'version cannot be parsed from --version'
-      assert False
-    if vr != 1 and vp < 3:
-      print 'samtools version must be 1.3+'
-  except:
-    print 'samtools not install properly'
-    sys.exit(1)
-
-  # idba_ud
-  # cannot invoke with no args without non-zero exit status
-
-#--------------------------------------------------------------------------
 # os
 #--------------------------------------------------------------------------
 def mkdir_p(dir):
@@ -180,4 +137,77 @@ class IdGenerator:
 
   def set_counter(self, n): 
     self.counter = n 
+
+#--------------------------------------------------------------------------
+# prereqs
+#--------------------------------------------------------------------------
+def check_prereqs():
+
+  fail = False
+
+  # flye
+  try:
+    output = subprocess.check_output(
+      'flye --version', shell=True, stderr=subprocess.STDOUT)
+    vre = re.compile(r"(\d+).(\d+)")
+    vr,vp = vre.search(output).groups()
+    vr,vp = int(vr),int(vp)
+    if None in [vr, vp]:
+      print 'flye version cannot be parsed from --version'
+      assert False
+    if vr == 0 and vp == 0:
+      print 'WARNING unrecognized flye version {}.{}'.format(vr,vp)
+    elif vr < 2 or (vr == 2 and  vp < 3):
+      print 'flye version must be 2.3+'
+      assert False, "version not up to date"
+    else:
+      print 'flye [ok]'
+  except:
+    print 'flye [FAIL]'
+    fail = True
+
+  # bwa
+  try:
+    pp = subprocess.Popen('bwa mem', shell=True, stderr=subprocess.PIPE)
+    pp.wait()
+    output = pp.stderr.read()
+    if 'bwa mem [options]' not in output:
+      assert False, 'bwa does not appear to be installed'
+    else:
+      print 'bwa [ok]'
+  except:
+    print 'bwa [FAIL]'
+    fail = True
+
+  # samtools
+  try:
+    output = subprocess.check_output('samtools --version', shell=True)
+    vre = re.compile(r"samtools\s+(\d+).(\d+)")
+    vr,vp = map(int, vre.search(output).groups())
+    if None in [vr, vp]:
+      print 'samtools version cannot be parsed from --version'
+      assert False
+    if vr != 1 and vp < 3:
+      print 'samtools version must be 1.3+'
+    else:
+      print 'samtools [ok]'
+  except:
+    print 'samtools [FAIL]'
+    fail = True
+
+  # idba_ud
+  try:
+    pp = subprocess.Popen('idba_subasm', shell=True, stderr=subprocess.PIPE)
+    pp.wait()
+    output = pp.stderr.read()
+    if 'Usage: idba_subasm' not in output:
+      assert False, 'idba_subasm does not appear to be installed'
+    else:
+      print 'idba_subasm [ok]'
+  except:
+    print 'idba_subasm [FAIL]'
+    print '  - be sure to install correct version of the idba_ud package as specified'
+    fail = True
+
+  return not fail
 

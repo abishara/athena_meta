@@ -21,6 +21,57 @@ from athena.stages import assemble_olc
 
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
+def run(options):
+  """
+  1. create output directories
+  2. collect args for each stage
+  3. check which stages need to run
+  4. iterate through stages and submit jobs
+  5. validate that we're done running
+  """
+  
+  util.mkdir_p(options.output_dir)
+  util.mkdir_p(options.results_dir)
+  util.mkdir_p(options.working_dir)
+  util.mkdir_p(options.log_dir)
+  
+  stages = get_stages(options)
+  runner = pipeline.Runner(options)
+  
+  for stage_name, stage in stages.items():
+    runner.run_stage(stage, stage_name)
+
+def clean(options):
+  stages = get_stages(options)
+
+  for stage_name, stage in stages.items():
+    stage.clean_all_steps(options)
+
+def get_stages(options):
+  stages = collections.OrderedDict()
+  
+  if options.pipe_type == 'meta-asm':
+    stages["check_reads"] = check_reads.CheckReadsStep
+    stages["subassemble_reads"] = subassemble_reads.SubassembleReadsStep
+    stages["assemble_olc"] = assemble_olc.AssembleOLCStep
+  else:
+    raise Exception("Pipeline not implemented yet")
+  
+  return stages
+
+def clean_up():
+  junk = filter(
+    lambda(f): (
+      f.startswith('SLURM_controller') or 
+      f.startswith('SLURM_engine') or 
+      f.startswith('sge_controller') or 
+      f.startswith('sge_engine') or 
+      f.startswith('bcbio-')
+    ),
+    os.listdir('.'),
+  )
+  map(lambda(f): os.remove(f), junk)
+
 def test(args):
   logging.info('running tiny test assembly')
   src_testdir_path = os.path.join(
@@ -79,64 +130,21 @@ def test(args):
     shutil.rmtree(testd)
     return True
 
-def run(options):
-  """
-  1. create output directories
-  2. collect args for each stage
-  3. check which stages need to run
-  4. iterate through stages and submit jobs
-  5. validate that we're done running
-  """
-  
-  util.mkdir_p(options.output_dir)
-  util.mkdir_p(options.results_dir)
-  util.mkdir_p(options.working_dir)
-  util.mkdir_p(options.log_dir)
-  
-  stages = get_stages(options)
-  runner = pipeline.Runner(options)
-  
-  for stage_name, stage in stages.items():
-    runner.run_stage(stage, stage_name)
-
-def clean(options):
-  stages = get_stages(options)
-
-  for stage_name, stage in stages.items():
-    stage.clean_all_steps(options)
-
-def get_stages(options):
-  stages = collections.OrderedDict()
-  
-  if options.pipe_type == 'meta-asm':
-    stages["check_reads"] = check_reads.CheckReadsStep
-    stages["subassemble_reads"] = subassemble_reads.SubassembleReadsStep
-    stages["assemble_olc"] = assemble_olc.AssembleOLCStep
-  else:
-    raise Exception("Pipeline not implemented yet")
-  
-  return stages
-
-def clean_up():
-  junk = filter(
-    lambda(f): (
-      f.startswith('SLURM_controller') or 
-      f.startswith('SLURM_engine') or 
-      f.startswith('sge_controller') or 
-      f.startswith('sge_engine') or 
-      f.startswith('bcbio-')
-    ),
-    os.listdir('.'),
-  )
-  map(lambda(f): os.remove(f), junk)
-
+#--------------------------------------------------------------------------
+# main
+#--------------------------------------------------------------------------
 def main():
 
   parser = argparse.ArgumentParser()
   parser.add_argument(
     '--config',
     default=None,
-    help='input JSON config file, NOTE: dirname(config.json) specifies root output directory'
+    help='input JSON config file for run, NOTE: dirname(config.json) specifies root output directory'
+  )
+  parser.add_argument(
+    '--check_prereqs',
+    action='store_true',
+    help='test if external deps visible in environment',
   )
   parser.add_argument(
     '--test',
@@ -155,15 +163,23 @@ def main():
     help='number of multiprocessing threads',
   )
   if len(sys.argv) == 1:
-    print 'error: either --config or --test must be specified\n'
+    print 'error: one of either --config, --check_prereqs, or --test must be specified\n'
     parser.print_help(sys.stderr)
     sys.exit(1)
 
   args = parser.parse_args()
-  if args.test and args.config != None:
-    print 'either --config or --test can be specified, but not both\n'
+  if sum([args.test, args.check_prereqs, (args.config != None)]) > 1:
+    print 'only one of --config, --check_prereqs, --test can be specified\n'
     parser.print_help(sys.stderr)
     sys.exit(1)
+
+  if args.check_prereqs:
+    passed = util.check_prereqs()
+    if passed:
+      sys.exit(0)
+    else:
+      print 'failed prereq checks, external deps required'
+      sys.exit(1)
 
   if args.test:
     test(args)
