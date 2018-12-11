@@ -50,7 +50,7 @@ Running Athena
 Overview:
 
 1. Generate input seed contigs for Athena with metaspades/idba_ud.  Align barcoded input reads to seed contigs with BWA.
-2. Setup a ``config.json`` file, which specifies inputs to Athena and your compute (eg cluster) setup
+2. Setup a ``config.json`` file, which specifies inputs to Athena
 3. Run Athena
 
 
@@ -100,40 +100,25 @@ Note that the resulting BAM must be position sorted and indexed.
 2. Setup a configuration file
 """""""""""""""""""""""""""""
 
-See the examples directory for an example ``config.json`` file.
-
-The configuration file is in the `JSON <http://www.json.org>`_ format, and contains the following three parts:
+The configuration file is in the `JSON <http://www.json.org>`_ format, and contains the following parts:
 
 1. input barcoded reads (FASTQ).  Must be uncompressed interleaved paired end reads, which specify barcodes with the BC tag as specified above.
 2. input seed contigs (FASTA).  Must be a path to a BWA built index.
 3. BWA alignments of barcoded input reads to input seeds (BAM)
-4. compute cluster settings
+4. (optional) compute cluster settings
 
-**Data Inputs** The following paths must be defined:
+**Data Inputs** The following entries must be defined:
 
 * ``input_fqs``: path to input uncompressed interleaved paired-end FASTQ (must specify barcodes with the BC tag as specified above.)
 * ``ctgfasta_path``: path to input seed contigs (must be BWA indexed)
 * ``reads_ctg_bam_path``: path to BAM of input reads BWA aligned to input seed contigs (alignments must have BC tag with barcode information)
 
-**Compute cluster settings** This defines the compute environment being
-used to perform assembly.  Athena manages the environment using
-`ipython-cluster-helper
-<https://github.com/roryk/ipython-cluster-helper>`_
+The following entry is optional:
 
-A multiprocessing setup looks like this:
+* ``cluster_settings``: an optional cluster compute environment to be used to perform assembly if a batch queueing submission system is available.  Athena manages the environment using `ipython-cluster-helper <https://github.com/roryk/ipython-cluster-helper>`_
 
-.. code-block:: json
-
-  "cluster_settings": {
-    "cluster_type": "multiprocessing",
-    "processes": 8
-  }
-
-Where ``processes`` specifies the maximum number of separate jobs (1
-processor per job) to allow in flight.  Each job can use up to 4G of
-memory, so be sure not oversubscribe the host machine.
-
-To use a compute cluster (not yet fully supported), a setup looks like this:
+An example ``cluster_settings`` entry specifying a compute cluster
+looks like the following:
 
 .. code-block:: json
 
@@ -150,20 +135,26 @@ To use a compute cluster (not yet fully supported), a setup looks like this:
 ``scheduler`` may be any of the clusters supported by
 `ipython-cluster-helper`. Currently, these are
 Platform LSF ("lsf"), Sun Grid Engine ("sge"), Torque ("torque"), and
-SLURM ("slurm").  
+SLURM ("slurm").   ``processes`` specifies the size of the job array to be
+used.
 
 3. Run Athena
 """""""""""""""
 
-To run Athena, use the ``athena-meta /path/to/config.json`` command. 
+To check all prerequisites are installed, run ``athena-meta --check_prereqs``.
+
+To run a tiny test assembly to check that Athena is properly setup, run ``athena-meta --test``.
+
+To run Athena on an input dataset, run ``athena-meta --config /path/to/config.json``.
 
 Note that the ``athena-meta`` command will continue running until all
-steps have completed. The ``athena-meta`` command itself is lightweight,
-and so can be run from a head node if the configuration is setup to use a
-cluster.  If running on a local machine in multiprocessing mode, please be
-aware that some subassembly problems can require up to 4G of memory.
-Adjust the number of ``processes`` to prevent oversubscription of the
-machine.
+steps have completed.   ``athena-meta`` runs locally with a single thread
+by default, but can be run using multiple threads by specifying
+``--threads``.  Please be aware that each thread can required up to 4Gb of
+memory during the subassembly step and so the number of threads should be
+adjusted accordingly.  If the config file provided specifies a cluster
+environment, the ``athena-meta`` command itself can be run from a head
+node as it is itself a lightweight process.
 
 The output assembled contigs will be placed in a subdirectory of the one
 ``config.json`` resides in (in this case
@@ -192,7 +183,7 @@ you downloaded and extracted readclouds-meta-asm-example.tar.gz):
 
 .. code-block:: bash
 
-    docker run -v `pwd`:/data -w /data/readclouds-l-gasseri-example abishara/athena-meta-flye-docker athena-meta config.json
+    docker run -v `pwd`:/data -w /data/readclouds-l-gasseri-example abishara/athena-meta-flye-docker athena-meta --config config.json
 
 This requires ~16GB of memory to run (for overlap assembly) and will take ~20
 minutes to complete. If you are running docker for Mac, please make sure
