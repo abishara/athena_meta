@@ -4,9 +4,10 @@ from setuptools import setup, find_packages
 
 setup(
   name = "athena",
-  version = "1.1",
-  packages = filter(lambda x: x.find('athena') == 0, find_packages()),
+  version = "1.2",
+  packages = find_packages(),
   py_modules = ['main'],
+  package_data = {'test_data' : ['reads.fq.gz', 'seeds.fa.gz']},
   entry_points = {
     'console_scripts': [ 'athena-meta = main:main' ]
   },
