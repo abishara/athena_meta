@@ -210,7 +210,7 @@ Please cite the following publication:
 
 * A. Bishara and E. Moss, et al.  High-quality genome sequences of
   uncultured microbes by assembly of read clouds. *Nature Biotechnology
-  2018* [https://doi.org/10.1038/nbt.4266]().
+  2018* (https://doi.org/10.1038/nbt.4266).
 
 ## Troubleshooting
 
