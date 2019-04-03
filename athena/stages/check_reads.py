@@ -55,7 +55,7 @@ class CheckReadsStep(StepChunk):
     )
 
   def run(self):
-    self.logger.log('index fastq {}'.format(self.nfq_path))
+    self.logger.broadcast('index fastq {}'.format(self.nfq_path))
     with FastqIndex(self.nfq_path, self.logger) as idx:
       fq_num_se_bcoded = idx.num_se_bcoded
       # check for barcodes in fastq
@@ -77,18 +77,18 @@ class CheckReadsStep(StepChunk):
           sys.exit(1)
     # use cheat seeds if specified (for debugging)
     if self.options.cheat_seeds:
-      self.logger.log('using cheat seeds file: {}'.format(self.options.cheat_seeds))
+      self.logger.broadcast('using cheat seeds file: {}'.format(self.options.cheat_seeds))
       seeds = set()
       with open(self.options.cheat_seeds) as fin:
         for line in fin:
           seed = line.strip()
           seeds.add(seed)
-      self.logger.log('  - loaded {}'.format(len(seeds)))
+      self.logger.broadcast('  - loaded {}'.format(len(seeds)))
       seeds = list(seeds)
     # use read mappings from *bam to select seeds without high enough input
     # coverage
     else:
-      self.logger.log('get seed contigs from input assembly')
+      self.logger.broadcast('get seed contigs from input assembly')
       ctg_covs, bam_num_se_bcoded = self.get_bam_stats()
       if bam_num_se_bcoded < 0.8 * fq_num_se_bcoded:
         print \
@@ -118,12 +118,12 @@ class CheckReadsStep(StepChunk):
       binid = 'bin.{}'.format(i)
       bins.append((binid, seed_group))
 
-    self.logger.log('created {} bins from seeds'.format(len(bins)))
+    self.logger.broadcast('created {} bins from seeds'.format(len(bins)))
     util.write_pickle(self.options.bins_pickle_path, bins)
 
     passfile_path = os.path.join(self.outdir, 'pass')
     util.touch(passfile_path)
-    self.logger.log('done')
+    self.logger.broadcast('done')
 
   def get_seeds(self, ctg_covs):
     ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
@@ -135,10 +135,10 @@ class CheckReadsStep(StepChunk):
       ),
       seeds,
     )
-    self.logger.log('  {} total inputs seeds covering {} bases'.format(
+    self.logger.broadcast('  {} total inputs seeds covering {} bases'.format(
       len(ctg_size_map), sum(ctg_size_map.values())
     ))
-    self.logger.log('  {} input seed contigs >= {}bp and >= {}x coverage covering {} bases'.format(
+    self.logger.broadcast('  {} input seed contigs >= {}bp and >= {}x coverage covering {} bases'.format(
       len(seeds),
       MIN_SEED_SIZE,
       MIN_COV,
@@ -150,7 +150,7 @@ class CheckReadsStep(StepChunk):
     ctg_counts_path = os.path.join(self.options.working_dir, 'ctg_counts.p')
     if os.path.isfile(ctg_counts_path):
       return util.load_pickle(ctg_counts_path)
-    self.logger.log('computing seed coverages (required pass thru *bam)')
+    self.logger.broadcast('computing seed coverages (required pass thru *bam)')
     bam_fin = pysam.Samfile(self.options.reads_ctg_bam_path, 'rb')
     ctg_bases = Counter()
     

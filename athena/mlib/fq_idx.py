@@ -101,12 +101,12 @@ are in a block together".format(self.fq_path)
       self._bcode_off_map.keys(),
     ))
 
-    self.logger.log('fqinfo${},{},{}'.format(
+    self.logger.debug('fqinfo${},{},{}'.format(
       self.num_se, len(self._bcode_off_map), num_bcodes,
     ))
-    print 'writing index for fqs'
-    for fq_path in [self.fq_path]:
-      print '  -', fq_path
+    #print 'writing index for fqs'
+    #for fq_path in [self.fq_path]:
+    #  print '  -', fq_path
     util.write_pickle(
       self.index_path, 
       (self.num_se, self.num_se_bcoded, self._bcode_off_map),
@@ -117,7 +117,7 @@ are in a block together".format(self.fq_path)
       self._num_se, self._num_se_bcoded, self._bcode_off_map = \
         util.load_pickle(self.index_path)
     except:
-      self.logger.log('error loading barcode FASTQ index {}, remove and retry'.format(
+      self.logger.error('error loading barcode FASTQ index {}, remove and retry'.format(
         self.index_path))
       sys.exit(3)
 

@@ -21,24 +21,42 @@ class Logger(object):
     if self.log_file != None:
       self.log_file.close()
   
-  def log(self, message):
+  def _fmt_msg(self, msg, lvl, end='\n'):
+    assert lvl in set(['info', 'debug', 'error'])
     date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    message_str = "{} - {}\n".format(date_str, message)
+    return "{} - {} - {}{}".format(date_str, lvl.upper(), msg, end)
     
-    self.log_file.write(message_str)
+  def _log_write(self, msg):
+    self.log_file.write(msg)
     self.log_file.flush()
-    
-    sys.stderr.write(message_str)
-    sys.stderr.flush()
+
+  def _std_write(self, msg, std=sys.stdout):
+    std.write(msg)
+    std.flush()
+
+  def broadcast(self, msg, end='\n'):
+    msg = self._fmt_msg(msg, 'info', end)
+    self._log_write(msg)
+    self._std_write(msg)
+
+  def info(self, msg, end='\n'):
+    msg = self._fmt_msg(msg, 'info', end)
+    self._log_write(msg)
+    #self._std_write(msg)
+
+  def debug(self, msg, end='\n'):
+    msg = self._fmt_msg(msg, 'debug', end)
+    self._log_write(msg)
+  
+  def error(self, msg, end='\n'):
+    msg = self._fmt_msg(msg, 'error', end)
+    self._log_write(msg)
+    self._std_write(msg, sys.stderr)
   
   def exception(self, exception):
     trace_string = traceback.format_exc()
-    self.log("="*10 + " Exception " + "="*10)
+    self.error("="*10 + " Exception " + "="*10)
     for line in trace_string.split("\n"):
-        self.log(line)
-    
-    self.log(exception)
-  
-  def error(self, error_message):
-    self.log("ERROR: {}".format(error_message))
+        self.error(line)
+    self.error(exception)
 

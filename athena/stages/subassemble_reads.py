@@ -48,21 +48,21 @@ class SubassembleReadsStep(StepChunk):
 
   def clean_working(self):
     bin_path = self.options.get_bin_dir(self.binid)
-    self.logger.log('removing bin directory {}'.format(bin_path))
+    self.logger.debug('removing bin directory {}'.format(bin_path))
     shutil.rmtree(bin_path)
     return 
 
   def run(self):
 
-    self.logger.log('performing local assembly for {} seeds'.format(
+    self.logger.debug('performing local assembly for {} seeds'.format(
       len(self.seeds)))
 
     local_assembler.DS_SUBASM_COV = self.options.ds_subasm_cov
     local_assembler.SEED_SELF_ASM_SIZE = self.options.seed_self_asm_size
-    self.logger.log('targeting {}x short-read subassembly coverage'.format(
+    self.logger.debug('targeting {}x short-read subassembly coverage'.format(
       local_assembler.DS_SUBASM_COV,
     ))
-    self.logger.log('using barcodes mapped within {}bp from seed end-points for seed subassembly'.format(
+    self.logger.debug('using barcodes mapped within {}bp from seed end-points for seed subassembly'.format(
       local_assembler.SEED_SELF_ASM_SIZE,
     ))
 
@@ -75,7 +75,7 @@ class SubassembleReadsStep(StepChunk):
       util.mkdir_p(asmdir)
       pass_path = os.path.join(asmdir, 'pass')
       if os.path.isfile(pass_path):
-        self.logger.log('seed {} output already generated'.format(ctg))
+        self.logger.debug('seed {} output already generated'.format(ctg))
         continue
       self.do_local_assembly(ctg, asmdir)
       out_path = os.path.join(asmdir, 'local-asm-merged.fa')
@@ -84,15 +84,17 @@ class SubassembleReadsStep(StepChunk):
       out_paths.append(out_path)
 
     # concatenate all results from seed contigs
-    self.logger.log('merging all outputs')
+    self.logger.debug('merging all outputs')
     mergedout_path = os.path.join(asmrootdir_path, 'local-asm-merged.fa')
     util.concat_files(out_paths, mergedout_path)
     shutil.copy(mergedout_path, self.options.get_bin_dir(self.binid, final=True))
-    self.logger.log('done')
+    self.logger.debug('  - done')
+
+    self.logger.broadcast('finished subassembly {}'.format(self.binid))
 
   def do_local_assembly(self, root_ctg, asmrootdir_path):
 
-    self.logger.log('assembling barcoded reads for seed {}'.format(root_ctg))
+    self.logger.debug('assembling barcoded reads for seed {}'.format(root_ctg))
 
     ctg_size_map = util.get_fasta_sizes(self.options.ctgfasta_path)
 
@@ -111,8 +113,8 @@ class SubassembleReadsStep(StepChunk):
     size = ctg_size_map[root_ctg]
     cov = 95. * numreads / size
     if cov < 10. or len(bcodes) < 30.:
-      self.logger.log('seed {} contig does not have high enough coverage'.format(root_ctg))
-      self.logger.log('  - {} bcodes, {}x'.format(len(bcodes), cov))
+      self.logger.debug('seed {} contig does not have high enough coverage'.format(root_ctg))
+      self.logger.debug('  - {} bcodes, {}x'.format(len(bcodes), cov))
       out_path = os.path.join(asmrootdir_path, 'local-asm-merged.fa')
       util.touch(out_path)
       return
@@ -127,9 +129,9 @@ class SubassembleReadsStep(StepChunk):
       self.logger,
     )
 
-    self.logger.log('determing local assemblies')
+    self.logger.debug('determing local assemblies')
     local_asms = asm.gen_local_cands()
-    self.logger.log('  - found {} candidates'.format(len(local_asms)))
+    self.logger.debug('  - found {} candidates'.format(len(local_asms)))
 
     # do not locally assemble with other seeds that are lexicographcially
     # smaller than the root. these will get run in other bins
@@ -141,19 +143,19 @@ class SubassembleReadsStep(StepChunk):
       ctg_size_map.keys(),
     ))
 
-    self.logger.log('performing local assemblies')
+    self.logger.debug('performing local assemblies')
     local_asm_results = asm.assemble(local_asms, filt_ctgs=seed_ctgs)
-    self.logger.log('  - finished {}'.format(len(local_asms)))
+    self.logger.debug('  - finished {}'.format(len(local_asms)))
 
     # merge output contigs from local assemblies
-    self.logger.log('merge long output contigs from local assemblies')
+    self.logger.debug('merge long output contigs from local assemblies')
     mergedasm_path = os.path.join(asmrootdir_path, 'local-asm-merged.fa')
     total_asm_contigs = 0
     total_asm_bp = 0
     with open(mergedasm_path, 'w') as fout:
       for i, (local_asm, contig_path) in enumerate(local_asm_results):
         if contig_path == None:
-          self.logger.log('contig path for local asm {} not generated'.format(str(local_asm)))
+          self.logger.debug('contig path for local asm {} not generated'.format(str(local_asm)))
           continue
         fasta = pysam.FastaFile(contig_path)
         for contig in sorted(
@@ -172,7 +174,7 @@ class SubassembleReadsStep(StepChunk):
           fout.write('>{}.{}${}.{}\n'.format(local_asm.root_ctg, link_name, contig, i))
           fout.write(str(seq) + '\n')
 
-    self.logger.log('  - {} contigs covering {} bases'.format(
+    self.logger.debug('  - {} contigs covering {} bases'.format(
       total_asm_contigs,
       total_asm_bp))
     pass_path = os.path.join(asmrootdir_path, 'pass')

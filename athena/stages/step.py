@@ -4,7 +4,7 @@ import os
 import shutil
 import time
 
-from ..mlib import log
+from ..mlib.log import Logger
 
 
 class StepChunk(object):
@@ -50,14 +50,14 @@ class StepChunk(object):
     return None
   
   def start_logging(self):
-    self.logger = log.Logger(self.log_path)
-    self.logger.log("--starting logging {} --".format(str(self)))
+    self.logger = Logger(self.log_path)
+    self.logger.debug("--starting logging {} --".format(str(self)))
     self._start_time = time.time()
   
   def stop_logging(self):
     elapsed = time.time() - self._start_time
-    self.logger.log("-> finished running step; time elapsed: {}".format(datetime.timedelta(seconds=elapsed)))
-    self.logger.log("--stopping logging--")
+    self.logger.debug("-> finished running step; time elapsed: {}".format(datetime.timedelta(seconds=elapsed)))
+    self.logger.debug("--stopping logging--")
     self.logger.close_log()
       
   @classmethod

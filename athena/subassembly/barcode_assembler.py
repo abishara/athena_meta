@@ -77,7 +77,7 @@ class LocalAssembler(object):
     results = []
     for i, local_asm in enumerate(local_asms):
       if filt_ctgs and local_asm.link_ctg in filt_ctgs:
-        self.logger.log('  - skipping filtered contig {}'.format(
+        self.logger.debug('  - skipping filtered contig {}'.format(
           local_asm.link_ctg))
         continue
       contig_path = self._do_idba_assembly(local_asm)
@@ -88,10 +88,10 @@ class LocalAssembler(object):
   def _do_idba_assembly(self, local_asm):
 
     #continue
-    self.logger.log('assembling with neighbor {}'.format(local_asm.link_ctg))
-    self.logger.log('  - {} orig barcodes'.format(len(local_asm.bcode_set)))
-    self.logger.log('  - {} downsampled barcodes'.format(len(local_asm.ds_bcode_set)))
-    self.logger.log('  - {}x estimated local coverage'.format(local_asm.local_asm_cov))
+    self.logger.debug('assembling with neighbor {}'.format(local_asm.link_ctg))
+    self.logger.debug('  - {} orig barcodes'.format(len(local_asm.bcode_set)))
+    self.logger.debug('  - {} downsampled barcodes'.format(len(local_asm.ds_bcode_set)))
+    self.logger.debug('  - {}x estimated local coverage'.format(local_asm.local_asm_cov))
 
     lrhintsfa_path = os.path.join(self.fqdir_path, 'lr-hints.{}.fa'.format(local_asm.uid))
     seedsfa_path = os.path.join(self.fqdir_path, 'seeds.{}.fa'.format(local_asm.uid))
@@ -118,7 +118,7 @@ class LocalAssembler(object):
     #min_support = max(2, int(local_asm.local_asm_cov / 10))
     # FIXME change back to /10
     min_support = max(2, int(local_asm.local_asm_cov / 20))
-    self.logger.log('  - {} min_support required'.format(min_support))
+    self.logger.debug('  - {} min_support required'.format(min_support))
 
     # filter input reads
     get_bcode_reads(
@@ -153,33 +153,35 @@ class LocalAssembler(object):
       seedsfa_path,
       asmdir_path,
     )
-    #cmd = '{} --maxk 80 -r {} -l {} -o {}'.format(
-    #  idbabin_path,
-    #  readsfa_path,
-    #  lrhintsfa_path,
-    #  asmdir_path,
-    #)
-    pp = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE)
+    pp = subprocess.Popen(
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    while pp.poll() is None:
+      line = pp.stdout.readline()
+      self.logger.debug('idba_subasm.std{out,err}: '+line, end='')
     retcode = pp.wait()
-    print "::::", retcode
+    #print "::::", retcode
     contig_path = os.path.join(asmdir_path, 'contig.fa')
     if not os.path.exists(contig_path):
       if retcode != 0 and  "invalid insert distance" in pp.stderr.read():
-        self.logger.log("idba_ud internal error; this is probably a bug in idba_ud, so we have to bail here")
+        self.logger.info("idba_ud internal error; this is probably a bug in idba_ud, so we have to bail here")
         open(contig_path, "w")
       else:
         error_message = "assembly failed to produce contig.fa"
-        self.logger.log(error_message)
+        self.logger.error(error_message)
         raise Exception()
     elif retcode != 0:
-      self.logger.log(
+      self.logger.info(
         "something funky happened while running idba_ud (got error code "
         "{}) but there's not much we can do so continuing".format(retcode))
     # check contig.fa is valid
     try:
       fasta = pysam.FastaFile(contig_path)
     except Exception as e:
-      self.logger.log('failed to produce correctly formatted contigs in {}'.format(contig_path))
+      self.logger.info('failed to produce correctly formatted contigs in {}'.format(contig_path))
       return None
 
     return contig_path
@@ -296,8 +298,8 @@ class LocalAssembler(object):
     if self.ctg_size_map[self.root_ctg] < SMALL_CTG_SIZE and is_whack_coverage(cov_bin_counts):
       root_max_cov = max(cov_bin_counts.values())
       root_med_cov = np.median(cov_bin_counts.values())
-      self.logger.log('root-ctg:{};filt-cov:True'.format(self.root_ctg))
-      self.logger.log('max coverage {} order of magnitude higher than median {}'.format(
+      self.logger.debug('root-ctg:{};filt-cov:True'.format(self.root_ctg))
+      self.logger.debug('max coverage {} order of magnitude higher than median {}'.format(
         root_max_cov, root_med_cov))
       return []
   
@@ -315,7 +317,7 @@ class LocalAssembler(object):
       reverse=True,
     )[:200]
 
-    self.logger.log('{} initial link candidates to check'.format(
+    self.logger.debug('{} initial link candidates to check'.format(
       len(link_cand_ctgs)))
     # examine recipricol links 
     link_ctgs = []
@@ -350,7 +352,7 @@ class LocalAssembler(object):
       #print '  - added'
       link_ctgs.append(link_ctg)
 
-    self.logger.log('  - {} pass reciprocal filtering'.format(
+    self.logger.debug('  - {} pass reciprocal filtering'.format(
       len(link_ctgs)))
 
     local_asms = []
@@ -429,8 +431,8 @@ class LocalAssembler(object):
     root_size = self.ctg_size_map[self.root_ctg]
     if root_size > 1.5 * SEED_SELF_ASM_SIZE:
     #if root_size > 2 * SEED_SELF_ASM_SIZE:
-      self.logger.log('large root contig of size {}'.format(root_size))
-      self.logger.log('  - generate head+tail local assemblies')
+      self.logger.debug('large root contig of size {}'.format(root_size))
+      self.logger.debug('  - generate head+tail local assemblies')
       # head
       (head_bcode_set, head_root_bcode_counts, _, _, _,) = \
         get_ctg_links(self.root_ctg, 0, SEED_SELF_ASM_SIZE)
@@ -500,7 +502,7 @@ class LocalAssembler(object):
     fhandle.close()
 
     # debug logging message
-    self.logger.log('root-ctg:{};numreads:{};checks:{};trunc-checks:{};asms:{};trunc-asms:{}'.format(
+    self.logger.debug('root-ctg:{};numreads:{};checks:{};trunc-checks:{};asms:{};trunc-asms:{}'.format(
       self.root_ctg,
       sum(cov_bin_counts.values()),
       num_orig_checks,

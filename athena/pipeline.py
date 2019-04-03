@@ -44,6 +44,7 @@ def _run_chunk(chunk):
     chunk.start_logging()
   except Exception, e:
     print "== Error starting logging =="
+    print(e)
     raise
   
   try:

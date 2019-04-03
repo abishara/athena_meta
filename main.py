@@ -94,12 +94,20 @@ def test(args):
   readsfq_path = os.path.join(testd, 'reads.fq')
   seedfa_path = os.path.join(testd, 'seeds.fa')
   bam_path = os.path.join(testd, 'align-reads.seeds.bam')
-  cmd = 'bwa index {}'.format(seedfa_path)
-  subprocess.check_call(cmd, shell=True)
-  cmd = 'bwa mem -p -C {0} {1} | samtools sort -o {2} - && samtools index {2}'.format(
-    seedfa_path, readsfq_path, bam_path,
-  )
-  subprocess.check_call(cmd, shell=True)
+  with open(os.devnull, 'w') as devnull:
+    cmd = 'bwa index {}'.format(seedfa_path)
+    pp = subprocess.Popen(cmd, shell=True, stdout=devnull, stderr=devnull)
+    retcode = pp.wait()
+    assert retcode == 0, \
+      "bwa indexing of test seed fasta {} failed".format(seedfa_path)
+    cmd = 'bwa mem -p -C {0} {1} | samtools sort -o {2} - && samtools index {2}'.format(
+      seedfa_path, readsfq_path, bam_path,
+    )
+    pp = subprocess.Popen(cmd, shell=True, stdout=devnull, stderr=devnull)
+    retcode = pp.wait()
+    assert retcode == 0, \
+      'bwa alignment of test reads {} to seed fasta {} failed'.format(
+        readsfq_path, seedfa_path)
 
   # format options for test directory and run
   options_path = os.path.join(testd, 'dummy.json')

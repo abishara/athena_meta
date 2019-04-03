@@ -2,10 +2,9 @@
 
 Athena is a read cloud assembler for metagenomes.
 
-**Version: 1.1**
+**Recent updates**
 
-* Athena has switched to using Flye (instead of Canu) for overlap assembly
-  of subassembled contigs
+* **v1.3 release**: Updates to command-line arguments and logging.
 
 ## Installation
 
@@ -15,6 +14,7 @@ already installed, please skip to section Docker (and example dataset).
 To install Athena in your native environment, the following prerequisites
 must be installed:
 
+* python 2.7 on Mac and Linux; Athena is not compatible with python 3.x
 * [idba_ud](https://github.com/abishara/idba/releases/tag/1.1.3a1) --
   please use **this** version, which is modified both to handle longer
   short-read lengths and to locally assemble subsampled barcoded reads
@@ -23,7 +23,7 @@ must be installed:
 * [samtools and htslib](http://www.htslib.org/download/) -- version 1.3 or
   later of `samtools` must all be in your `$PATH`
 * [bwa-mem](https://github.com/lh3/bwa/releases)
-* [flye](https://github.com/fenderglass/Flye) -- version 2.3.1 or later
+* [flye](https://github.com/fenderglass/Flye) -- version 2.3.1 
 
 We recommend setting up a [virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/) prior to
 installing Athena (or using [virtualenvwrapper](http://www.simononsoftware.com/virtualenv-tutorial-part-2/)):
@@ -214,7 +214,8 @@ Please cite the following publication:
 
 ## Troubleshooting
 
-The `athena-meta` command may be run multiple times to resume the pipeline.
+The `athena-meta` command may be run multiple times to resume from the
+last step successfully completed.
 
 If you are having trouble installing or running Athena, the docker file
 (see above) may help you diagnose the issue.

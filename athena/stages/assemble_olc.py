@@ -58,7 +58,7 @@ class AssembleOLCStep(StepChunk):
 
     # load all the bins and merge
     if not os.path.isfile(premergedfa_path):
-      self.logger.log('merge input contigs')
+      self.logger.broadcast('merge input contigs')
       bins = util.load_pickle(self.options.bins_pickle_path)
       input_paths = []
       seed_ctgs = set()
@@ -68,9 +68,9 @@ class AssembleOLCStep(StepChunk):
         bindir_path = self.options.get_bin_dir(binid, final=True)
         fa_path = os.path.join(bindir_path, 'local-asm-merged.fa')
         if not os.path.isfile(fa_path):
-          self.logger.log(' not found, skipping {}'.format(fa_path))
+          self.logger.broadcast(' not found, skipping {}'.format(fa_path))
         elif not is_valid_fasta(fa_path):
-          self.logger.log('WARNING input fasta not valid: {}'.format(fa_path))
+          self.logger.broadcast('WARNING input fasta not valid: {}'.format(fa_path))
         else:
           input_paths.append(fa_path)
       util.concat_files(input_paths, premergedfa_path)
@@ -85,26 +85,34 @@ class AssembleOLCStep(StepChunk):
     # filter subassembled inputs that are not useful
     num_threads = self.options.cluster_settings.processes
     mergedbam_path = os.path.join(self.outdir, 'align-inputs.bam')
-    cmd = 'bwa mem -t {} {} {} | samtools view -bS - | samtools sort -o {} - '.format(
-      num_threads,
-      self.options.ctgfasta_path,
-      premergedfa_path,
-      mergedbam_path,
-    )
     if not os.path.isfile(mergedbam_path):
-      print 'cmd', cmd
-      subprocess.check_call(cmd, shell=True)
-      cmd = 'samtools index {}'.format(mergedbam_path)
-      print 'cmd', cmd
-      subprocess.check_call(cmd, shell=True)
+      with open(os.devnull, 'w') as devnull:
+        cmd = 'bwa mem -t {} {} {} | samtools view -bS - | samtools sort -o {} - '.format(
+          num_threads,
+          self.options.ctgfasta_path,
+          premergedfa_path,
+          mergedbam_path,
+        )
+        pp = subprocess.Popen(cmd, shell=True, stdout=devnull, stderr=devnull)
+        retcode = pp.wait()
+        assert retcode == 0, \
+          "bwa alignment of unfiltered subassembly contigs {} to {} failed".format(
+            premergedfa_path, self.options.ctgfasta_path)
+        cmd = 'samtools index {}'.format(mergedbam_path)
+        pp = subprocess.Popen(cmd, shell=True, stdout=devnull, stderr=devnull)
+        retcode = pp.wait()
+        assert retcode == 0, \
+          "indexing of {} failed".format(mergedbam_path)
 
     if not os.path.isfile(mergedfiltfa_path):
-      self.logger.log('filter short subassembled contigs and merge with seeds')
-      filter_inputs(
+      self.logger.broadcast('filter short subassembled contigs and merge with seeds')
+      num_orig, num_filt = filter_inputs(
         mergedbam_path,
         premergedfa_path,
         premergedfiltfa_path,
       )
+      self.logger.broadcast('  - {} filtered of {} original contigs remaining'.format(
+        num_filt, num_orig))
 
       # append input seed contigs
       with open(seedsfa_path, 'w') as fout:
@@ -145,14 +153,14 @@ class AssembleOLCStep(StepChunk):
       num_threads,
     )
     if not os.path.isfile(flye_contigs_path):
-      print 'launching Flye OLC assembly'
-      print 'cmd', cmd
+      self.logger.broadcast('launching Flye OLC assembly')
+      self.logger.broadcast('  - cmd:{}'.format(cmd))
       subprocess.check_call(cmd, shell=True)
 
     # copy flye output as athena final output
     final_fa_path = os.path.join(self.outdir, 'athena.asm.fa')
     shutil.copy(flye_contigs_path, final_fa_path)
-    self.logger.log('done')
+    self.logger.broadcast('done')
 
 #--------------------------------------------------------------------------
 # helpers
@@ -180,15 +188,18 @@ def filter_inputs(
       full_ctgs.add(read.qname)
   fhandle.close()
 
-  print 'orig ctgs', len(ctg_size_map)
+  #print 'orig ctgs', len(ctg_size_map)
   new_ctgs = set(ctg_size_map.keys()) - full_ctgs
-  print 'filtered ctgs', len(new_ctgs)
+  #print 'filtered ctgs', len(new_ctgs)
   fasta = pysam.FastaFile(mergedfa_path)
   with open(mergedfiltfa_path, 'w') as fout:
     for ctg in new_ctgs:
       seq = str(fasta.fetch(ctg).upper())
       fout.write('>{}\n'.format(ctg))
       fout.write('{}\n'.format(seq))
+  num_orig = len(ctg_size_map)
+  num_filt = len(new_ctgs)
+  return num_orig, num_filt
 
 def is_valid_fasta(fa_path):
   alpha = set('acgtACGT')
