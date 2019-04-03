@@ -1,8 +1,17 @@
 # Athena
+[![BioConda Install](https://img.shields.io/conda/dn/bioconda/athena_meta.svg?style=flag&label=BioConda%20install)](https://anaconda.org/bioconda/athena_meta)
 
 Athena is a read cloud assembler for metagenomes.
 
 **Recent updates**
+
+* **Conda**: Athena is now available through
+  [bioconda](https://anaconda.org/bioconda/athena_meta).  Please ensure
+  [channels](https://bioconda.github.io/index.html#set-up-channels) are
+  properly setup for bioconda before installing.  Also, note you must
+  create a new environment with `conda create` before installing as
+  referenced in
+  [#14162](https://github.com/bioconda/bioconda-recipes/issues/14162)
 
 * **v1.3 release**: Updates to command-line arguments and logging.
 
