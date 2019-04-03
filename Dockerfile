@@ -53,6 +53,7 @@ RUN apt-get -y install python-pip && pip install pip==9.0.2
 RUN mkdir athena_meta_src && cd athena_meta_src \
      && wget https://github.com/abishara/athena_meta/archive/1.3.tar.gz -O athena_meta.tar.gz \
      && tar -xf athena_meta.tar.gz --strip-components 1 \
+     && pip install -r requirements.txt \
      && pip install -vvv .
 
 CMD athena-meta
