@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
   name = "athena",
-  version = "1.2",
+  version = "1.3",
   packages = find_packages(),
   py_modules = ['main'],
   package_data = {'test_data' : ['reads.fq.gz', 'seeds.fa.gz']},
